@@ -199,5 +199,21 @@
             "light",
             "dark"
         ]
-    }
+    },
+    "customSearchCommand": [
+        {
+            "commandName": "maxmind",
+            "fileName": "maxmind.py",
+            "commandType": "streaming",
+            "arguments": [
+                {
+                    "name": "ip-address-fieldname",
+                    "validate": {
+                        "type": "Fieldname"
+                    },
+                    "required": true
+                }
+            ]
+        }
+    ]
 }
