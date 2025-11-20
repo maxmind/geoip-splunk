@@ -207,7 +207,7 @@
             "commandType": "streaming",
             "arguments": [
                 {
-                    "name": "ip-address-fieldname",
+                    "name": "ip_field",
                     "validate": {
                         "type": "Fieldname"
                     },
