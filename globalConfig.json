@@ -203,7 +203,7 @@
     "customSearchCommand": [
         {
             "commandName": "maxmind",
-            "fileName": "maxmind.py",
+            "fileName": "maxmind_command.py",
             "commandType": "streaming",
             "arguments": [
                 {

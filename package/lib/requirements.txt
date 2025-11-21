@@ -1,3 +1,4 @@
 splunktaucclib
 splunk-sdk
 solnlib
+geoip2<5.0
