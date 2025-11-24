@@ -1,7 +1,7 @@
 [project]
-name = "splunk-addon"
-version = "0.1.0"
-description = "Add your description here"
+name = "maxmind-splunk-add-on"
+version = "1.0.0"
+description = "MaxMind database lookups in Splunk"
 readme = "README.md"
 requires-python = ">=3.9,<3.10"
 dependencies = [
