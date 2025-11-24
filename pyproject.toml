@@ -1,0 +1,10 @@
+[project]
+name = "splunk-addon"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pip>=25.3",
+    "splunk-add-on-ucc-framework>=6.1.0",
+]
