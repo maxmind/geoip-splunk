@@ -1,4 +1,4 @@
 splunktaucclib
 splunk-sdk
 solnlib
-geoip2==5.1.0
+maxminddb==2.8.2

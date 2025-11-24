@@ -5,13 +5,12 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-import geoip2.database
-import geoip2.errors
+import maxminddb
 
-# Open the GeoIP2 database once at module level
+# Open the MaxMind database once at module level
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_path = os.path.join(script_dir, '..', 'data', 'GeoLite2-Country.mmdb')
-_reader = geoip2.database.Reader(db_path)
+_reader = maxminddb.open_database(db_path)
 
 
 def stream(command, events):
@@ -34,18 +33,15 @@ def stream(command, events):
 
         if ip_address:
             try:
-                # Perform the GeoIP2 lookup
-                response = _reader.country(ip_address)
+                # Perform the MaxMind database lookup
+                record = _reader.get(ip_address)
 
-                # Add the country code to the event
-                if response.country.iso_code:
-                    event['country_code'] = response.country.iso_code
+                # Add the country code to the event if found
+                if record and record.get('country', {}).get('iso_code'):
+                    event['country_code'] = record['country']['iso_code']
 
-            except geoip2.errors.AddressNotFoundError:
-                # IP not found in database - skip adding fields
-                pass
-            except (ValueError, geoip2.errors.GeoIP2Error):
-                # Invalid IP address or other GeoIP2 error - skip adding fields
+            except ValueError:
+                # Invalid IP address - skip adding fields
                 pass
 
         yield event
