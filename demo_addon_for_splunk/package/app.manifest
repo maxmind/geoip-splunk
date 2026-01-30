@@ -9,9 +9,9 @@
         },
         "author": [
             {
-                "name": "",
-                "email": null,
-                "company": null
+                "name": "William Storey",
+                "email": "wstorey@maxmind.com",
+                "company": "MaxMind"
             }
         ],
         "releaseDate": null,

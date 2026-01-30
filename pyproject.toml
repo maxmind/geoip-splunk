@@ -3,7 +3,7 @@ name = "maxmind-splunk-add-on"
 version = "1.0.0"
 description = "MaxMind database lookups in Splunk"
 readme = "README.md"
-requires-python = ">=3.9,<3.10"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "pip>=25.3",
     "splunk-add-on-ucc-framework>=6.1.0",
