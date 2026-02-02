@@ -118,7 +118,8 @@ The main UCC configuration file. Defines:
 
 ### package/app.manifest
 
-JSON file with add-on metadata:
+JSON file with add-on metadata. Note: The `version` field here should match `globalConfig.json` for consistency, but UCC uses the version from `globalConfig.json` as the source of truth and overwrites `app.manifest` during build.
+
 ```json
 {
   "info": {
