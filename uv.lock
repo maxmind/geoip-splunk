@@ -60,6 +60,15 @@ wheels = [
 ]
 
 [[package]]
+name = "iniconfig"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -137,10 +146,44 @@ dependencies = [
     { name = "splunk-add-on-ucc-framework" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "maxminddb" },
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "pip", specifier = ">=25.3" },
     { name = "splunk-add-on-ucc-framework", specifier = ">=6.1.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "maxminddb", specifier = ">=3.0.0" },
+    { name = "pytest", specifier = ">=8.3.5" },
+]
+
+[[package]]
+name = "maxminddb"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/6e/6adbb0b2280a853e8b3344737fea5167e8a2a2ff67168555589b7278e2e8/maxminddb-3.0.0.tar.gz", hash = "sha256:9792b19625945dff146e2e3187f9e470b82330a912f7cea5581b8bd5af30da8b", size = 199784, upload-time = "2025-10-15T20:50:07.283Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/4e/9c97eaea080d450ab63197a20ead71cc652f99f5ecb1e68fc0896db33ac8/maxminddb-3.0.0-cp313-cp313-android_21_arm64_v8a.whl", hash = "sha256:f2162e6bee9643d86647518c891756ef5091afb1c2d522fc206d7c26187862eb", size = 37615, upload-time = "2025-10-15T20:49:04.728Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/a1/900f105a1562667e22566bbbfa3ca8ca6ea2b2e7e31ff30673459809be74/maxminddb-3.0.0-cp313-cp313-android_21_x86_64.whl", hash = "sha256:eace3ccb184546287d27fce54852751e935c00f9ba7b66fece09e7761503cd13", size = 38070, upload-time = "2025-10-15T20:49:06.138Z" },
+    { url = "https://files.pythonhosted.org/packages/39/6b/247ef29d080be9b57efba90e33445e2cc028f8cf09beb5e697e5132c95dd/maxminddb-3.0.0-cp313-cp313-ios_13_0_arm64_iphoneos.whl", hash = "sha256:babf6c600361e5f9bc3e3873b900ab044f6cdc7c0f15c086e0b52d2e005ab949", size = 35365, upload-time = "2025-10-15T20:49:07.233Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/dd/ca6c4929e1a634507a99e8143c81ecc3f3f913e1a0c47b656b5a006538ec/maxminddb-3.0.0-cp313-cp313-ios_13_0_arm64_iphonesimulator.whl", hash = "sha256:024221e821f3385dd41f13e2d0ac5afca569b69a6d7755c8c960edaf31c0e47f", size = 35919, upload-time = "2025-10-15T20:49:08.3Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/41/a7faaf244114d47994fef85accd06dd906832cdcc5465ad27b48e0f11f2d/maxminddb-3.0.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:bc838d9060e6e623b4bd055d498a2159a072d43beb3eeaefde5af39ac1b1b249", size = 54354, upload-time = "2025-10-15T20:49:09.417Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/c8/76b3c0ea1f180209496cb401892a4ad197ee23ac1f370da578fffa466418/maxminddb-3.0.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:29fd164067b2765752d5970aaef823a51d262a484c59e866c20dbf99f45453ac", size = 36312, upload-time = "2025-10-15T20:49:10.713Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/96/b2d5ab37458ec892d7d52b6a9e6aa9992354d61df20b9978bae60e35d17a/maxminddb-3.0.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:6008ecba67b7024b80e3f28e276b736f2f984795cd4a6922ddffaba8038d6a60", size = 36174, upload-time = "2025-10-15T20:49:12.232Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/3d/c22a117c1c6ca42a62be9473f12d113e2eab72ac28c032a290d0fbbd488e/maxminddb-3.0.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:684fec138b463d1fc6fa88fd2967e25b3af0629eb0b5e6f3bbc017e64e2f68c6", size = 101205, upload-time = "2025-10-15T20:49:13.342Z" },
+    { url = "https://files.pythonhosted.org/packages/df/e6/a170e6ae3492d8e334a6ce9e39668f2b8d0cb0a158804460b5d851315230/maxminddb-3.0.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e2dd94deb1baa19f9fd17968b90b7c03589078a3000972948e3aecfa723300d1", size = 99495, upload-time = "2025-10-15T20:49:14.65Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/8b/a18aba0838a85bf9ff30f165d3cb5f52967858e89e54aa8a7509a674f253/maxminddb-3.0.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:880e233c00a4403bb6dd5e406f156be3c6a5a5b37b472102928014ab21c12b4b", size = 98402, upload-time = "2025-10-15T20:49:15.864Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/24/85d15613b6dbf2b683a5b9817640c3baac1931edf59a7465c54e0ad92084/maxminddb-3.0.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:8e8031353eaece26ee634bcba2cba3bb91092f52a69e5f5dbc5931d59f84b2de", size = 97303, upload-time = "2025-10-15T20:49:17.121Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/fb/23883b82abf92d0613375a9a9f4a4412ff8cc0596d124070832bf7f783a6/maxminddb-3.0.0-cp313-cp313-win32.whl", hash = "sha256:2d325fcdbf1ba356ac47304ba3fc8605b21b9bd09d0818b24f43ebecc71c5e29", size = 35481, upload-time = "2025-10-15T20:49:18.266Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/19/a498bf14a86e98475d4ca994988e8f072dccfd407d026403ad95725321de/maxminddb-3.0.0-cp313-cp313-win_amd64.whl", hash = "sha256:3ad60671645bf88b853f126999cafd0e61ad668f210176ea24a8b5e99dd3e049", size = 37299, upload-time = "2025-10-15T20:49:19.488Z" },
+    { url = "https://files.pythonhosted.org/packages/34/ca/36fecfbed3ef0175b569b07f968fb56d591a6effdaeda81f1247dc8034a4/maxminddb-3.0.0-cp313-cp313-win_arm64.whl", hash = "sha256:4ca8989b0e389404f268c8650aeeadda34417f87baa405325b051a511f56c382", size = 34254, upload-time = "2025-10-15T20:49:20.533Z" },
 ]
 
 [[package]]
@@ -159,6 +202,40 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/fe/6e/74a3f0179a4a73a53d66ce57fdb4de0080a8baa1de0063de206d6167acc2/pip-25.3.tar.gz", hash = "sha256:8d0538dbbd7babbd207f261ed969c65de439f6bc9e5dbd3b3b9a77f25d95f343", size = 1803014, upload-time = "2025-10-25T00:55:41.394Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/44/3c/d717024885424591d5376220b5e836c2d5293ce2011523c9de23ff7bf068/pip-25.3-py3-none-any.whl", hash = "sha256:9655943313a94722b7774661c21049070f6bbb0a1516bf02f7c8d5d9201514cd", size = 1778622, upload-time = "2025-10-25T00:55:39.247Z" },
+]
+
+[[package]]
+name = "pluggy"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "pygments"
+version = "2.19.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+]
+
+[[package]]
+name = "pytest"
+version = "9.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/db/7ef3487e0fb0049ddb5ce41d3a49c235bf9ad299b6a25d5780a89f19230f/pytest-9.0.2.tar.gz", hash = "sha256:75186651a92bd89611d1d9fc20f0b4345fd827c41ccd5c299a868a05d70edf11", size = 1568901, upload-time = "2025-12-06T21:30:51.014Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/ab/b3226f0bd7cdcf710fbede2b3548584366da3b19b5021e74f5bde2a8fa3f/pytest-9.0.2-py3-none-any.whl", hash = "sha256:711ffd45bf766d5264d487b917733b453d917afd2b0ad65223959f59089f875b", size = 374801, upload-time = "2025-12-06T21:30:49.154Z" },
 ]
 
 [[package]]

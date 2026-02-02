@@ -17,7 +17,7 @@ uv sync         # Install build dependencies
 ./build.sh      # Generates output/ directory and .tar.gz package
 
 # Run tests
-python test_maxmind_command.py
+uv run pytest tests
 
 # Install to Splunk (requires Splunk 10.2)
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
