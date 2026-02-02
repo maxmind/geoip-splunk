@@ -49,7 +49,7 @@ demo_addon_for_splunk/
 
 ## Tests
 
-Tests live in `tests/` and use pytest with unittest.TestCase style. Test data comes from the `MaxMind-DB` git submodule at `tests/data/`.
+Tests live in `tests/` and use pytest. Test data comes from the `MaxMind-DB` git submodule at `tests/data/`.
 
 ```
 tests/

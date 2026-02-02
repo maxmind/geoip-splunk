@@ -61,8 +61,6 @@ ignore = [
     "ANN201",
     # D: Docstrings - not needed for tests
     "D",
-    # PT009: Use pytest assertions - we use unittest style
-    "PT009",
     # S101: Use of assert - expected in tests
     "S101",
     # SLF001: Private member access - needed to test private functions
