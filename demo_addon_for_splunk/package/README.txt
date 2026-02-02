@@ -39,8 +39,14 @@ Output Fields:
     - country.names.en: Country name in English
     - continent.code: Two-letter continent code (e.g., "NA")
     - city.names.en: City name
+    - subdivisions.0.iso_code: First subdivision code (e.g., "CA" for California)
+    - subdivisions.0.names.en: First subdivision name
     - is_anonymous, is_vpn, etc.: Anonymous IP flags (Anonymous-IP database)
     - network: The matched CIDR block (e.g., "192.0.2.0/24")
+
+    List fields like subdivisions use numeric indices (0, 1, 2, ...) in the
+    field name. Subdivisions are ordered from largest to smallest, so
+    subdivisions.0 is typically the state/province.
 
     The network field contains the most specific (smallest) network matched
     across all queried databases.

@@ -138,21 +138,46 @@ def stream(
 
 def _flatten_record(
     record: dict[str, Any],
-    prefix: str = "",
+    key_prefix: str = "",
 ) -> Iterator[tuple[str, Any]]:
     """Flatten a nested record dict into dot-notation keys.
 
     Args:
-        record: A dictionary that may contain nested dictionaries
-        prefix: The prefix to prepend to keys (for recursion)
+        record: A dictionary that may contain nested dictionaries or lists
+        key_prefix: The prefix to prepend to keys (for recursion)
+
+    Yields:
+        Tuples of (flattened_key, value) for all leaf values
+
+    Examples:
+        {"country": {"iso_code": "US"}} -> [("country.iso_code", "US")]
+        {"subdivisions": [{"iso_code": "CA"}]} -> [("subdivisions.0.iso_code", "CA")]
+
+    """
+    for key, value in record.items():
+        full_key = f"{key_prefix}{key}" if key_prefix else key
+        yield from _flatten_value(value, full_key)
+
+
+def _flatten_value(
+    value: Any,  # noqa: ANN401
+    key: str,
+) -> Iterator[tuple[str, Any]]:
+    """Flatten a value, recursing into dicts and lists.
+
+    Args:
+        value: The value to flatten (may be dict, list, or scalar)
+        key: The key for this value
 
     Yields:
         Tuples of (flattened_key, value) for all leaf values
 
     """
-    for key, value in record.items():
-        full_key = f"{prefix}{key}" if prefix else key
-        if isinstance(value, dict):
-            yield from _flatten_record(value, f"{full_key}.")
-        else:
-            yield full_key, value
+    if isinstance(value, dict):
+        for sub_key, sub_value in value.items():
+            yield from _flatten_value(sub_value, f"{key}.{sub_key}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            yield from _flatten_value(item, f"{key}.{i}")
+    else:
+        yield key, value

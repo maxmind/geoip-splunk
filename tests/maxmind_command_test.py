@@ -323,3 +323,46 @@ def test_ip_in_one_database_only() -> None:
     assert result["country.iso_code"] == "US"
     # Should not have anonymous fields (not in that database)
     assert "is_anonymous" not in result
+
+
+def test_flatten_record_list_of_dicts() -> None:
+    """Test that lists of dicts are flattened with numeric indices."""
+    record = {"subdivisions": [{"iso_code": "CA", "names": {"en": "California"}}]}
+    result = dict(maxmind_command._flatten_record(record))
+
+    assert result == {
+        "subdivisions.0.iso_code": "CA",
+        "subdivisions.0.names.en": "California",
+    }
+
+
+def test_flatten_record_multiple_list_items() -> None:
+    """Test that multiple list items get sequential indices."""
+    record = {"subdivisions": [{"iso_code": "CA"}, {"iso_code": "SF"}]}
+    result = dict(maxmind_command._flatten_record(record))
+
+    assert result == {
+        "subdivisions.0.iso_code": "CA",
+        "subdivisions.1.iso_code": "SF",
+    }
+
+
+def test_flatten_record_simple_list() -> None:
+    """Test that simple lists are flattened with indices."""
+    record = {"tags": ["a", "b", "c"]}
+    result = dict(maxmind_command._flatten_record(record))
+
+    assert result == {"tags.0": "a", "tags.1": "b", "tags.2": "c"}
+
+
+def test_subdivisions_flattened() -> None:
+    """Test that subdivisions from City database are properly flattened."""
+    # 89.160.20.112 has subdivisions in GeoIP2-City-Test
+    command = MockCommand(databases="GeoIP2-City-Test")
+    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+
+    assert len(results) == 1
+    result = results[0]
+    # Subdivisions should be flattened with numeric index
+    assert result["subdivisions.0.iso_code"] == "E"
+    assert result["subdivisions.0.names.en"] == "Östergötland County"
