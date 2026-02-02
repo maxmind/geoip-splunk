@@ -1,5 +1,6 @@
-import sys
+import ipaddress
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
@@ -22,14 +23,21 @@ _reader = maxminddb.open_database(db_path)
 
 
 def stream(command, events):
-    """Stream function called by the UCC-generated wrapper.
+    """Enrich events with data from a MaxMind database.
+
+    Looks up the IP address in the MaxMind database and adds all fields found
+    to the event using dot-notation (e.g., country.iso_code, country.names.en,
+    continent.code). Also adds a 'network' field with the matched CIDR block.
+
+    If no result is found (invalid IP, IP not in database, or missing IP field),
+    the event is yielded unchanged.
 
     Args:
         command: The MaxmindCommand instance with options
         events: Generator of event dictionaries
 
     Yields:
-        Modified event dictionaries with country_code field added
+        Event dictionaries, enriched with database fields when a match is found
     """
     ip_field = command.ip_field
 
@@ -38,13 +46,37 @@ def stream(command, events):
 
         if ip_address:
             try:
-                record = _reader.get(ip_address)
+                record, prefix_len = _reader.get_with_prefix_len(ip_address)
 
-                # Add the country code to the event if found
-                if record and record.get('country', {}).get('iso_code'):
-                    event['country_code'] = record['country']['iso_code']
+                if record:
+                    for key, value in _flatten_record(record):
+                        event[key] = value
+
+                    network = ipaddress.ip_network(
+                        f"{ip_address}/{prefix_len}",
+                        strict=False,
+                    )
+                    event['network'] = str(network)
 
             except ValueError:
                 pass
 
         yield event
+
+
+def _flatten_record(record, prefix=''):
+    """Flatten a nested record dict into dot-notation keys.
+
+    Args:
+        record: A dictionary that may contain nested dictionaries
+        prefix: The prefix to prepend to keys (for recursion)
+
+    Yields:
+        Tuples of (flattened_key, value) for all leaf values
+    """
+    for key, value in record.items():
+        full_key = f"{prefix}{key}" if prefix else key
+        if isinstance(value, dict):
+            yield from _flatten_record(value, f"{full_key}.")
+        else:
+            yield full_key, value
