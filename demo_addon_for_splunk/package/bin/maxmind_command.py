@@ -1,6 +1,10 @@
+"""MaxMind database lookup streaming command for Splunk."""
+
 import ipaddress
 import os
 import sys
+from collections.abc import Iterator
+from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
@@ -16,13 +20,13 @@ import maxminddb
 # available in the add-on directly.
 script_dir = os.path.dirname(os.path.abspath(__file__))
 db_path = os.environ.get(
-    'MAXMIND_DB_PATH',
-    os.path.join(script_dir, '..', 'data', 'GeoLite2-Country.mmdb'),
+    "MAXMIND_DB_PATH",
+    os.path.join(script_dir, "..", "data", "GeoLite2-Country.mmdb"),
 )
 _reader = maxminddb.open_database(db_path)
 
 
-def stream(command, events):
+def stream(command: Any, events: Iterator[dict[str, Any]]) -> Iterator[dict[str, Any]]:
     """Enrich events with data from a MaxMind database.
 
     Looks up the IP address in the MaxMind database and adds all fields found
@@ -38,6 +42,7 @@ def stream(command, events):
 
     Yields:
         Event dictionaries, enriched with database fields when a match is found
+
     """
     ip_field = command.ip_field
 
@@ -48,7 +53,7 @@ def stream(command, events):
             try:
                 record, prefix_len = _reader.get_with_prefix_len(ip_address)
 
-                if record:
+                if record and isinstance(record, dict):
                     for key, value in _flatten_record(record):
                         event[key] = value
 
@@ -56,7 +61,7 @@ def stream(command, events):
                         f"{ip_address}/{prefix_len}",
                         strict=False,
                     )
-                    event['network'] = str(network)
+                    event["network"] = str(network)
 
             except ValueError:
                 pass
@@ -64,7 +69,10 @@ def stream(command, events):
         yield event
 
 
-def _flatten_record(record, prefix=''):
+def _flatten_record(
+    record: dict[str, Any],
+    prefix: str = "",
+) -> Iterator[tuple[str, Any]]:
     """Flatten a nested record dict into dot-notation keys.
 
     Args:
@@ -73,6 +81,7 @@ def _flatten_record(record, prefix=''):
 
     Yields:
         Tuples of (flattened_key, value) for all leaf values
+
     """
     for key, value in record.items():
         full_key = f"{prefix}{key}" if prefix else key

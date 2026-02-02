@@ -20,7 +20,10 @@ git submodule update --init       # Initialize test data submodule
 ./build.sh      # Generates output/ directory and .tar.gz package
 
 # Run tests
-uv run pytest tests
+uv run tox -e 3.13
+
+# Lint
+uv run tox -e lint
 
 # Install to Splunk (requires Splunk 10.2)
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
@@ -62,6 +65,10 @@ Test IPs from GeoIP2-Country-Test.mmdb:
 - `214.78.120.0/22` → US
 - `2001:218::/32` → JP
 - `2001:220::1/128` → KR
+
+## Linting
+
+Uses ruff (linting + formatting) and mypy (type checking), orchestrated via tox (`uv run tox -e lint`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `pyproject.toml`.
 
 ## Key Configuration Files
 

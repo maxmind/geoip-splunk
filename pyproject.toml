@@ -13,7 +13,66 @@ dependencies = [
 dev = [
     "maxminddb>=3.0.0",
     "pytest>=8.3.5",
+    "tox>=4.25.0",
+    "tox-uv>=1.25.0",
+]
+lint = [
+    "mypy>=1.15.0",
+    "ruff>=0.11.6",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+extend-exclude = [
+    # UCC-generated files
+    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Redundant as the formatter handles missing trailing commas.
+    "COM812",
+    # Conflicts with D211
+    "D203",
+    # Conflicts with D213
+    "D213",
+    # Splunk add-on structure doesn't use __init__.py
+    "INP001",
+    # Allow os.path usage (pathlib not always better for simple cases)
+    "PTH100",
+    "PTH118",
+    "PTH120",
+    # TODOs don't need author/issue links in this project
+    "TD002",
+    "TD003",
+    "FIX002",
+    # Allow Any for untyped third-party libraries (Splunk SDK)
+    "ANN401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN201", "D", "PT009", "S101", "SLF001"]
+
+[tool.mypy]
+strict = true
+
+[tool.tox]
+env_list = ["3.13", "lint"]
+
+[tool.tox.env_run_base]
+skip_install = true
+dependency_groups = ["dev"]
+pass_env = ["MAXMIND_DB_PATH"]
+commands = [["pytest", "tests"]]
+
+[tool.tox.env.lint]
+description = "Code linting"
+dependency_groups = ["dev", "lint"]
+commands = [
+    ["mypy", "demo_addon_for_splunk/package/bin/maxmind_command.py", "tests"],
+    ["ruff", "check"],
+    ["ruff", "format", "--check", "--diff", "."],
+]

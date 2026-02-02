@@ -151,7 +151,8 @@ class TestMaxmindCommand(unittest.TestCase):
 
     def test_invalid_ip_out_of_range(self) -> None:
         command = MockCommand(ip_field="ip")
-        results = list(maxmind_command.stream(command, iter([{"ip": "999.999.999.999"}])))
+        events = iter([{"ip": "999.999.999.999"}])
+        results = list(maxmind_command.stream(command, events))
 
         self.assertEqual(results, [{"ip": "999.999.999.999"}])
 
@@ -175,7 +176,8 @@ class TestMaxmindCommand(unittest.TestCase):
 
     def test_missing_ip_field(self) -> None:
         command = MockCommand(ip_field="ip")
-        results = list(maxmind_command.stream(command, iter([{"other_field": "value"}])))
+        events = iter([{"other_field": "value"}])
+        results = list(maxmind_command.stream(command, events))
 
         self.assertEqual(results, [{"other_field": "value"}])
 
@@ -192,7 +194,8 @@ class TestMaxmindCommand(unittest.TestCase):
 
     def test_custom_ip_field(self) -> None:
         command = MockCommand(ip_field="src_ip")
-        results = list(maxmind_command.stream(command, iter([{"src_ip": "214.78.120.1"}])))
+        events = iter([{"src_ip": "214.78.120.1"}])
+        results = list(maxmind_command.stream(command, events))
 
         expected = {k: v for k, v in EXPECTED_US.items() if k != "ip"}
         expected["src_ip"] = "214.78.120.1"
