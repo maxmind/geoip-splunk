@@ -136,15 +136,11 @@ def stream(
         yield event
 
 
-def _flatten_record(
-    record: dict[str, Any],
-    key_prefix: str = "",
-) -> Iterator[tuple[str, Any]]:
+def _flatten_record(record: dict[str, Any]) -> Iterator[tuple[str, Any]]:
     """Flatten a nested record dict into dot-notation keys.
 
     Args:
         record: A dictionary that may contain nested dictionaries or lists
-        key_prefix: The prefix to prepend to keys (for recursion)
 
     Yields:
         Tuples of (flattened_key, value) for all leaf values
@@ -155,8 +151,7 @@ def _flatten_record(
 
     """
     for key, value in record.items():
-        full_key = f"{key_prefix}{key}" if key_prefix else key
-        yield from _flatten_value(value, full_key)
+        yield from _flatten_value(value, key)
 
 
 def _flatten_value(
