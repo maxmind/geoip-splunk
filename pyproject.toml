@@ -76,7 +76,7 @@ env_list = ["3.13", "lint"]
 [tool.tox.env_run_base]
 skip_install = true
 dependency_groups = ["dev"]
-pass_env = ["MAXMIND_DB_PATH"]
+pass_env = ["MAXMIND_DB_DIR"]
 commands = [["pytest", "tests"]]
 
 [tool.tox.env.lint]
