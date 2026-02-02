@@ -56,7 +56,7 @@ def _get_reader(name: str) -> maxminddb.Reader:
         msg = f"Invalid database name: {name}"
         raise ValueError(msg)
     if name not in _readers:
-        db_path = Path(_db_dir) / f"{name}.mmdb"
+        db_path = Path(_db_dir, f"{name}.mmdb")
         if not db_path.exists():
             msg = f"Database not found: {db_path}"
             raise FileNotFoundError(msg)
