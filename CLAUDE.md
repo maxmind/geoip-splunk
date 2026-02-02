@@ -77,7 +77,7 @@ python.version = python3.13
 - **Build dependencies**: in `pyproject.toml` (managed by uv)
 - **Add-on runtime dependencies**: in `package/lib/requirements.txt` (installed into add-on's lib/)
 
-**Important**: The `geoip2` package (build dependency) and `maxminddb` package (runtime dependency) must be kept compatible. When updating one, check and update the other. For example, geoip2 5.2.0 requires maxminddb 3.x.
+When updating dependencies, check both locations to ensure they stay in sync.
 
 ## UCC Framework Behavior
 
