@@ -14,7 +14,7 @@ This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (U
 | maxmind [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
-- `databases` (required): Comma-separated list of database names (e.g., `GeoIP2-Country,GeoIP2-Anonymous-IP`)
+- `databases` (required): Comma-separated list of database names. **Must be quoted if multiple** (e.g., `databases="GeoIP2-Country,GeoIP2-Anonymous-IP"`)
 - `field` (optional, default `ip`): Event field containing the IP address
 - `prefix` (optional, default empty): Prefix for output field names
 

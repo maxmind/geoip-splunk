@@ -18,8 +18,9 @@ Arguments:
 
     databases (required)
         Comma-separated list of MaxMind database names to query.
+        IMPORTANT: When specifying multiple databases, quote the value.
         Example: databases=GeoIP2-Country
-        Example: databases=GeoIP2-City,GeoIP2-Anonymous-IP
+        Example: databases="GeoIP2-City,GeoIP2-Anonymous-IP"
 
     field (optional, default: ip)
         The event field containing the IP address to look up.
@@ -62,7 +63,7 @@ Examples:
 
     Combine country and anonymous IP detection with a prefix:
 
-        | ... | maxmind prefix=geo_ databases=GeoIP2-Country,GeoIP2-Anonymous-IP
+        | ... | maxmind prefix=geo_ databases="GeoIP2-Country,GeoIP2-Anonymous-IP"
 
     This produces fields like geo_country.iso_code and geo_is_anonymous.
 
