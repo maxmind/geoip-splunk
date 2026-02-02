@@ -59,22 +59,28 @@ def stream(
     for event in events:
         ip_address = event.get(ip_field)
 
-        if ip_address:
-            try:
-                record, prefix_len = _reader.get_with_prefix_len(ip_address)
+        if not ip_address:
+            yield event
+            continue
 
-                if record and isinstance(record, dict):
-                    for key, value in _flatten_record(record):
-                        event[key] = value
+        try:
+            record, prefix_len = _reader.get_with_prefix_len(ip_address)
+        except ValueError:
+            yield event
+            continue
 
-                    network = ipaddress.ip_network(
-                        f"{ip_address}/{prefix_len}",
-                        strict=False,
-                    )
-                    event["network"] = str(network)
+        if not record or not isinstance(record, dict):
+            yield event
+            continue
 
-            except ValueError:
-                pass
+        for key, value in _flatten_record(record):
+            event[key] = value
+
+        network = ipaddress.ip_network(
+            f"{ip_address}/{prefix_len}",
+            strict=False,
+        )
+        event["network"] = str(network)
 
         yield event
 
