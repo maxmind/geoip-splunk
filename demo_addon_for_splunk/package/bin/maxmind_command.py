@@ -4,11 +4,18 @@ import ipaddress
 import os
 import sys
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Protocol
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
+
+
+class Command(Protocol):
+    """Protocol for Splunk streaming command objects."""
+
+    ip_field: str
+
 
 # Open the database once at module level
 #
@@ -26,7 +33,10 @@ db_path = os.environ.get(
 _reader = maxminddb.open_database(db_path)
 
 
-def stream(command: Any, events: Iterator[dict[str, Any]]) -> Iterator[dict[str, Any]]:
+def stream(
+    command: Command,
+    events: Iterator[dict[str, Any]],
+) -> Iterator[dict[str, Any]]:
     """Enrich events with data from a MaxMind database.
 
     Looks up the IP address in the MaxMind database and adds all fields found
