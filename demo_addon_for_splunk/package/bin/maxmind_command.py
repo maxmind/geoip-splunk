@@ -15,6 +15,7 @@ class Command(Protocol):
     """Protocol for Splunk streaming command objects."""
 
     field: str
+    prefix: str
 
 
 # Open the database once at module level
@@ -50,6 +51,8 @@ def stream(
         command: The MaxmindCommand instance with arguments:
             field: The event field containing the IP address to look up
                 (default: 'ip').
+            prefix: A prefix to prepend to all output field names
+                (default: '').
         events: Generator of event dictionaries
 
     Yields:
@@ -57,6 +60,7 @@ def stream(
 
     """
     field = command.field
+    prefix = command.prefix
 
     for event in events:
         ip_address = event.get(field)
@@ -76,13 +80,13 @@ def stream(
             continue
 
         for key, value in _flatten_record(record):
-            event[key] = value
+            event[f"{prefix}{key}"] = value
 
         network = ipaddress.ip_network(
             f"{ip_address}/{prefix_len}",
             strict=False,
         )
-        event["network"] = str(network)
+        event[f"{prefix}network"] = str(network)
 
         yield event
 

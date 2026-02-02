@@ -8,10 +8,11 @@ import maxmind_command
 
 
 class MockCommand:
-    """Mock command object that provides field attribute."""
+    """Mock command object that provides field and prefix attributes."""
 
-    def __init__(self, field: str = "ip") -> None:
+    def __init__(self, field: str = "ip", prefix: str = "") -> None:
         self.field = field
+        self.prefix = prefix
 
 
 # Expected results from GeoIP2-Country-Test.mmdb for test IPs.
@@ -213,6 +214,17 @@ def test_custom_field() -> None:
 
     expected = {k: v for k, v in EXPECTED_US.items() if k != "ip"}
     expected["src_ip"] = "214.78.120.1"
+    assert results == [expected]
+
+
+def test_prefix() -> None:
+    command = MockCommand(prefix="maxmind_")
+    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    expected: dict[str, object] = {"ip": "214.78.120.1"}
+    for key, value in EXPECTED_US.items():
+        if key != "ip":
+            expected[f"maxmind_{key}"] = value
     assert results == [expected]
 
 

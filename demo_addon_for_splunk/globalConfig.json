@@ -213,6 +213,11 @@
                     },
                     "required": false,
                     "default": "ip"
+                },
+                {
+                    "name": "prefix",
+                    "required": false,
+                    "default": ""
                 }
             ]
         }
