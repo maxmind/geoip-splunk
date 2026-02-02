@@ -14,7 +14,10 @@ import maxminddb
 # TODO: We need to be able to download databases rather than assume they are
 # available in the add-on directly.
 script_dir = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(script_dir, '..', 'data', 'GeoLite2-Country.mmdb')
+db_path = os.environ.get(
+    'MAXMIND_DB_PATH',
+    os.path.join(script_dir, '..', 'data', 'GeoLite2-Country.mmdb'),
+)
 _reader = maxminddb.open_database(db_path)
 
 

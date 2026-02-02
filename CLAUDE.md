@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Important**: When you learn something new about this project or make changes that affect information documented here, update this file at the same time to keep it accurate.
+
 ## Project Overview
 
 This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`maxmind`) that performs country lookups using MaxMind databases.
@@ -10,8 +12,9 @@ This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (U
 
 ```bash
 # Setup environment
-mise install    # Install Python 3.13
-uv sync         # Install build dependencies
+mise install                      # Install Python 3.13
+uv sync                           # Install build dependencies
+git submodule update --init       # Initialize test data submodule
 
 # Build the add-on
 ./build.sh      # Generates output/ directory and .tar.gz package
@@ -40,6 +43,25 @@ demo_addon_for_splunk/
 │   ├── static/            # Icons and images
 │   └── data/              # Data files (e.g., MaxMind databases)
 ```
+
+## Tests
+
+Tests live in `tests/` and use pytest with unittest.TestCase style. Test data comes from the `MaxMind-DB` git submodule at `tests/data/`.
+
+```
+tests/
+├── conftest.py              # Sets MAXMIND_DB_PATH to test database
+├── data/                    # MaxMind-DB submodule (git submodule)
+│   └── test-data/           # Contains test .mmdb files
+└── maxmind_command_test.py  # Tests using GeoIP2-Country-Test.mmdb
+```
+
+The `MAXMIND_DB_PATH` environment variable overrides the database path, allowing tests to use `GeoIP2-Country-Test.mmdb` instead of the production database.
+
+Test IPs from GeoIP2-Country-Test.mmdb:
+- `214.78.120.0/22` → US
+- `2001:218::/32` → JP
+- `2001:220::1/128` → KR
 
 ## Key Configuration Files
 
