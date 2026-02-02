@@ -218,6 +218,10 @@
                     "name": "prefix",
                     "required": false,
                     "default": ""
+                },
+                {
+                    "name": "databases",
+                    "required": true
                 }
             ]
         }

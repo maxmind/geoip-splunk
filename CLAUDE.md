@@ -6,9 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`maxmind`) that performs country lookups using MaxMind databases.
+This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`maxmind`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
 
-## Commands
+## The maxmind Command
+
+```
+| maxmind [prefix=<string>] [field=<string>] databases=<databases>
+```
+
+- `databases` (required): Comma-separated list of database names (e.g., `GeoIP2-Country,GeoIP2-Anonymous-IP`)
+- `field` (optional, default `ip`): Event field containing the IP address
+- `prefix` (optional, default empty): Prefix for output field names
+
+Behavior:
+- Queries each database and merges all fields into the event
+- When databases have conflicting fields, the last database wins
+- The `network` field contains the most specific (smallest) CIDR block across all databases
+- Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
+- Events with missing, empty, invalid, or not-found IPs pass through unchanged
+
+End-user documentation is in `package/README.txt`.
+
+## Build Commands
 
 ```bash
 # Setup environment
@@ -53,13 +72,13 @@ Tests live in `tests/` and use pytest. Test data comes from the `MaxMind-DB` git
 
 ```
 tests/
-├── conftest.py              # Sets MAXMIND_DB_PATH to test database
+├── conftest.py              # Sets MAXMIND_DB_DIR to test database directory
 ├── data/                    # MaxMind-DB submodule (git submodule)
 │   └── test-data/           # Contains test .mmdb files
-└── maxmind_command_test.py  # Tests using GeoIP2-Country-Test.mmdb
+└── maxmind_command_test.py  # Tests using various test databases
 ```
 
-The `MAXMIND_DB_PATH` environment variable overrides the database path, allowing tests to use `GeoIP2-Country-Test.mmdb` instead of the production database.
+The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
 
 Test IPs from GeoIP2-Country-Test.mmdb:
 - `214.78.120.0/22` → US

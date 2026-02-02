@@ -5,14 +5,21 @@ GeoIP2-Country-Test.mmdb which contains known test data.
 """
 
 import maxmind_command
+import pytest
 
 
 class MockCommand:
-    """Mock command object that provides field and prefix attributes."""
+    """Mock command object that provides field, prefix, and databases attributes."""
 
-    def __init__(self, field: str = "ip", prefix: str = "") -> None:
+    def __init__(
+        self,
+        field: str = "ip",
+        prefix: str = "",
+        databases: str = "GeoIP2-Country-Test",
+    ) -> None:
         self.field = field
         self.prefix = prefix
+        self.databases = databases
 
 
 # Expected results from GeoIP2-Country-Test.mmdb for test IPs.
@@ -246,3 +253,73 @@ def test_flatten_record_empty_dict() -> None:
     result = dict(maxmind_command._flatten_record({}))
 
     assert result == {}
+
+
+def test_multiple_databases() -> None:
+    """Test that fields from multiple databases are merged."""
+    # 89.160.20.112 is in both Country-Test and City-Test
+    # City has additional fields like city.names.en
+    command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-City-Test")
+    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+
+    assert len(results) == 1
+    result = results[0]
+    # Should have country fields from both (City overwrites Country)
+    assert result["country.iso_code"] == "SE"
+    # Should have city fields from City-Test (Country doesn't have these)
+    assert result["city.names.en"] == "Linköping"
+
+
+def test_multiple_databases_smallest_network() -> None:
+    """Test that the most specific (smallest) network is returned."""
+    # 89.160.20.112 is in:
+    # - GeoIP2-Country-Test with /28
+    # - GeoIP2-ISP-Test with /29 (more specific)
+    # Should return /29 (the most specific)
+    command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-ISP-Test")
+    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+
+    assert len(results) == 1
+    assert results[0]["network"] == "89.160.20.112/29"
+
+
+def test_multiple_databases_last_wins() -> None:
+    """Test that later databases overwrite earlier ones for conflicting fields."""
+    # Use City and Country which both have country.iso_code
+    # The second database in the list should win
+    command = MockCommand(databases="GeoIP2-City-Test,GeoIP2-Country-Test")
+    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    assert len(results) == 1
+    # Both have this field, Country-Test (second) should win
+    assert results[0]["country.iso_code"] == "US"
+
+
+def test_database_not_found() -> None:
+    """Test that a missing database raises an error."""
+    command = MockCommand(databases="NonExistent-Database")
+
+    with pytest.raises(FileNotFoundError, match="Database not found"):
+        list(maxmind_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_invalid_database_name() -> None:
+    """Test that invalid database names are rejected."""
+    command = MockCommand(databases="../etc/passwd")
+
+    with pytest.raises(ValueError, match="Invalid database name"):
+        list(maxmind_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_ip_in_one_database_only() -> None:
+    """Test lookup when IP is only in one of multiple databases."""
+    # 214.78.120.1 is in Country but not in Anonymous-IP
+    command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-Anonymous-IP-Test")
+    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    assert len(results) == 1
+    result = results[0]
+    # Should have country fields
+    assert result["country.iso_code"] == "US"
+    # Should not have anonymous fields (not in that database)
+    assert "is_anonymous" not in result

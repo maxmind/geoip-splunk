@@ -2,10 +2,10 @@ import os
 import sys
 from pathlib import Path
 
-# Set the test database path before importing maxmind_command
+# Set the test database directory before importing maxmind_command
 repo_root = Path(__file__).parent.parent
-test_db = repo_root / "tests" / "data" / "test-data" / "GeoIP2-Country-Test.mmdb"
-os.environ["MAXMIND_DB_PATH"] = str(test_db)
+test_db_dir = repo_root / "tests" / "data" / "test-data"
+os.environ["MAXMIND_DB_DIR"] = str(test_db_dir)
 
 # Add the package bin directory to the path
 bin_dir = repo_root / "demo_addon_for_splunk" / "package" / "bin"
