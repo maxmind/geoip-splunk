@@ -33,26 +33,41 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    # Redundant as the formatter handles missing trailing commas.
+    # COM812: Missing trailing comma - redundant as formatter handles this
     "COM812",
-    # Conflicts with D211
+    # D203: One blank line before class docstring - conflicts with D211
     "D203",
-    # Conflicts with D213
+    # D213: Multi-line summary on second line - conflicts with D212
     "D213",
-    # Splunk add-on structure doesn't use __init__.py
+    # INP001: Implicit namespace package - Splunk add-ons don't use __init__.py
     "INP001",
-    # Allow os.path usage (pathlib not always better for simple cases)
+    # PTH100: os.path.abspath - pathlib not always better for simple cases
     "PTH100",
+    # PTH118: os.path.join - pathlib not always better for simple cases
     "PTH118",
+    # PTH120: os.path.dirname - pathlib not always better for simple cases
     "PTH120",
-    # TODOs don't need author/issue links in this project
+    # TD002: Missing author in TODO - not needed for this project
     "TD002",
+    # TD003: Missing issue link in TODO - not needed for this project
     "TD003",
+    # FIX002: Line contains TODO - TODOs are allowed
     "FIX002",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN201", "D", "PT009", "S101", "SLF001"]
+"tests/*" = [
+    # ANN201: Missing return type on public function - not needed for tests
+    "ANN201",
+    # D: Docstrings - not needed for tests
+    "D",
+    # PT009: Use pytest assertions - we use unittest style
+    "PT009",
+    # S101: Use of assert - expected in tests
+    "S101",
+    # SLF001: Private member access - needed to test private functions
+    "SLF001",
+]
 
 [tool.mypy]
 strict = true
