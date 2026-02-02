@@ -211,7 +211,8 @@
                     "validate": {
                         "type": "Fieldname"
                     },
-                    "required": true
+                    "required": false,
+                    "default": "ip"
                 }
             ]
         }

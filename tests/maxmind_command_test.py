@@ -199,6 +199,13 @@ def test_multiple_events() -> None:
     assert results == [EXPECTED_US, {"ip": "invalid"}, {"other": "field"}]
 
 
+def test_default_field() -> None:
+    command = MockCommand()
+    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    assert results == [EXPECTED_US]
+
+
 def test_custom_field() -> None:
     command = MockCommand(field="src_ip")
     events = iter([{"src_ip": "214.78.120.1"}])
