@@ -50,14 +50,7 @@
                 }
             ],
             "title": "Configuration",
-            "description": "Set up your add-on"
-        },
-        "dashboard": {
-            "panels": [
-                {
-                    "name": "default"
-                }
-            ]
+            "description": "Configure your MaxMind account and databases"
         }
     },
     "meta": {
