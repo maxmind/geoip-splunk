@@ -70,6 +70,10 @@ ignore = [
 [tool.mypy]
 strict = true
 
+[[tool.mypy.overrides]]
+module = ["solnlib", "solnlib.*"]
+ignore_missing_imports = true
+
 [tool.tox]
 env_list = ["3.13", "lint"]
 

@@ -1,5 +1,6 @@
 """MaxMind database lookup streaming command for Splunk."""
 
+import logging
 import os
 import re
 import sys
@@ -11,6 +12,16 @@ from typing import Any, Protocol
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
+
+_LOGGER_NAME = "geoip"
+
+try:
+    from solnlib import log
+
+    _logger = log.Logs().get_logger(_LOGGER_NAME)
+except ImportError:
+    _logger = logging.getLogger(_LOGGER_NAME)
+_logger.setLevel(logging.INFO)
 
 
 class Command(Protocol):
@@ -114,6 +125,7 @@ def stream(
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
+                _logger.debug("Invalid IP address: %s", ip_address)
                 continue
 
             if not record or not isinstance(record, dict):
