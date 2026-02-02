@@ -8,10 +8,10 @@ import maxmind_command
 
 
 class MockCommand:
-    """Mock command object that provides ip_field attribute."""
+    """Mock command object that provides field attribute."""
 
-    def __init__(self, ip_field: str = "ip") -> None:
-        self.ip_field = ip_field
+    def __init__(self, field: str = "ip") -> None:
+        self.field = field
 
 
 # Expected results from GeoIP2-Country-Test.mmdb for test IPs.
@@ -123,35 +123,35 @@ EXPECTED_KR = {
 
 
 def test_valid_ipv4_us() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     assert results == [EXPECTED_US]
 
 
 def test_valid_ipv6_jp() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "2001:218::1"}])))
 
     assert results == [EXPECTED_JP]
 
 
 def test_valid_ipv6_kr() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "2001:220::1"}])))
 
     assert results == [EXPECTED_KR]
 
 
 def test_invalid_ip_format() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "not.an.ip"}])))
 
     assert results == [{"ip": "not.an.ip"}]
 
 
 def test_invalid_ip_out_of_range() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     events = iter([{"ip": "999.999.999.999"}])
     results = list(maxmind_command.stream(command, events))
 
@@ -159,28 +159,28 @@ def test_invalid_ip_out_of_range() -> None:
 
 
 def test_invalid_ip_empty_string() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": ""}])))
 
     assert results == [{"ip": ""}]
 
 
 def test_ip_not_in_database() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "8.8.8.8"}])))
 
     assert results == [{"ip": "8.8.8.8"}]
 
 
 def test_private_ip_not_in_database() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     results = list(maxmind_command.stream(command, iter([{"ip": "192.168.1.1"}])))
 
     assert results == [{"ip": "192.168.1.1"}]
 
 
-def test_missing_ip_field() -> None:
-    command = MockCommand(ip_field="ip")
+def test_missing_field() -> None:
+    command = MockCommand(field="ip")
     events = iter([{"other_field": "value"}])
     results = list(maxmind_command.stream(command, events))
 
@@ -188,7 +188,7 @@ def test_missing_ip_field() -> None:
 
 
 def test_multiple_events() -> None:
-    command = MockCommand(ip_field="ip")
+    command = MockCommand(field="ip")
     events = [
         {"ip": "214.78.120.1"},
         {"ip": "invalid"},
@@ -199,8 +199,8 @@ def test_multiple_events() -> None:
     assert results == [EXPECTED_US, {"ip": "invalid"}, {"other": "field"}]
 
 
-def test_custom_ip_field() -> None:
-    command = MockCommand(ip_field="src_ip")
+def test_custom_field() -> None:
+    command = MockCommand(field="src_ip")
     events = iter([{"src_ip": "214.78.120.1"}])
     results = list(maxmind_command.stream(command, events))
 

@@ -14,7 +14,7 @@ import maxminddb
 class Command(Protocol):
     """Protocol for Splunk streaming command objects."""
 
-    ip_field: str
+    field: str
 
 
 # Open the database once at module level
@@ -47,17 +47,19 @@ def stream(
     the event is yielded unchanged.
 
     Args:
-        command: The MaxmindCommand instance with options
+        command: The MaxmindCommand instance with arguments:
+            field: The event field containing the IP address to look up
+                (default: 'ip').
         events: Generator of event dictionaries
 
     Yields:
         Event dictionaries, enriched with database fields when a match is found
 
     """
-    ip_field = command.ip_field
+    field = command.field
 
     for event in events:
-        ip_address = event.get(ip_field)
+        ip_address = event.get(field)
 
         if not ip_address:
             yield event
