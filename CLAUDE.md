@@ -111,10 +111,51 @@ Uses ruff (linting + formatting) and mypy (type checking), orchestrated via tox 
 ### globalConfig.json
 
 The main UCC configuration file. Defines:
-- Input types and their parameters
 - Configuration tabs (accounts, logging)
 - Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
+
+#### Configuration Tab Types
+
+Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or **single-instance forms**:
+
+**Multi-instance table** (for multiple accounts/configurations):
+```json
+{
+    "name": "account",
+    "table": {
+        "actions": ["edit", "delete", "clone"],
+        "header": [{"label": "Name", "field": "name"}]
+    },
+    "entity": [
+        {"field": "name", "required": true, ...},
+        {"field": "api_key", "encrypted": true, ...}
+    ],
+    "title": "Accounts"
+}
+```
+- Has `table` property with actions and header columns
+- Requires a `name` field to identify each instance
+- UI shows a table with add/edit/delete actions
+
+**Single-instance form** (for one set of settings):
+```json
+{
+    "name": "account",
+    "entity": [
+        {"field": "account_id", "encrypted": true, ...},
+        {"field": "license_key", "encrypted": true, ...}
+    ],
+    "title": "MaxMind Account"
+}
+```
+- No `table` property
+- No `name` field needed
+- UI shows a simple form with save button
+
+#### Field Encryption
+
+Use `"encrypted": true` on sensitive fields (API keys, passwords). UCC stores these in Splunk's secure credential storage (`passwords.conf`) rather than plain text config files.
 
 ### package/app.manifest
 
