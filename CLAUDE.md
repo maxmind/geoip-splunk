@@ -97,7 +97,7 @@ Uses ruff (linting + formatting) and mypy (type checking), orchestrated via tox 
 The main UCC configuration file. Defines:
 - Input types and their parameters
 - Configuration tabs (accounts, logging)
-- Custom search commands
+- Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
 
 ### package/app.manifest
@@ -171,4 +171,5 @@ splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
 
 ## Key Constraints
 
+- Always run linters (`uv run tox -e lint`), tests (`uv run tox -e 3.13`), and `./build.sh` before considering any changes complete
 - The `author` field in `package/default/app.conf` must exactly match the first author name in `package/app.manifest`

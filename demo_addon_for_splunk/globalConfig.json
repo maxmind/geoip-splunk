@@ -212,12 +212,12 @@
                         "type": "Fieldname"
                     },
                     "required": false,
-                    "default": "ip"
+                    "defaultValue": "ip"
                 },
                 {
                     "name": "prefix",
                     "required": false,
-                    "default": ""
+                    "defaultValue": ""
                 },
                 {
                     "name": "databases",
