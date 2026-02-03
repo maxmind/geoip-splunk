@@ -25,7 +25,7 @@
         },
         "commonInformationModels": null,
         "license": {
-            "name": "LICENSE.txt",
+            "name": "Apache-2.0 OR MIT",
             "text": "./LICENSES/LICENSE.txt",
             "uri": null
         },
