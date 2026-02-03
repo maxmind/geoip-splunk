@@ -186,5 +186,7 @@ def _flatten_value(
     elif isinstance(value, list):
         for i, item in enumerate(value):
             yield from _flatten_value(item, f"{key}.{i}")
+        if value and key == "subdivisions":
+            yield from _flatten_value(value[-1], f"{key}.-1")
     else:
         yield key, value

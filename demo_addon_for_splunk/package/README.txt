@@ -44,9 +44,10 @@ Output Fields:
     - is_anonymous, is_vpn, etc.: Anonymous IP flags (Anonymous-IP database)
     - network: The matched CIDR block (e.g., "192.0.2.0/24")
 
-    List fields like subdivisions use numeric indices (0, 1, 2, ...) in the
-    field name. Subdivisions are ordered from largest to smallest, so
-    subdivisions.0 is typically the state/province.
+    Subdivisions use numeric indices (0, 1, 2, ...) in the field name.
+    Subdivisions are ordered from largest to smallest, so subdivisions.0 is
+    typically the state/province. The last (most specific) subdivision is also
+    available at index -1 (e.g., subdivisions.-1.iso_code).
 
     The network field contains the most specific (smallest) network matched
     across all queried databases.

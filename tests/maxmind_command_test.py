@@ -333,6 +333,8 @@ def test_flatten_record_list_of_dicts() -> None:
     assert result == {
         "subdivisions.0.iso_code": "CA",
         "subdivisions.0.names.en": "California",
+        "subdivisions.-1.iso_code": "CA",
+        "subdivisions.-1.names.en": "California",
     }
 
 
@@ -344,6 +346,7 @@ def test_flatten_record_multiple_list_items() -> None:
     assert result == {
         "subdivisions.0.iso_code": "CA",
         "subdivisions.1.iso_code": "SF",
+        "subdivisions.-1.iso_code": "SF",
     }
 
 
@@ -366,3 +369,6 @@ def test_subdivisions_flattened() -> None:
     # Subdivisions should be flattened with numeric index
     assert result["subdivisions.0.iso_code"] == "E"
     assert result["subdivisions.0.names.en"] == "Östergötland County"
+    # Last subdivision is also available at -1
+    assert result["subdivisions.-1.iso_code"] == "E"
+    assert result["subdivisions.-1.names.en"] == "Östergötland County"
