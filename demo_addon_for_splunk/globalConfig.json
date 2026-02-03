@@ -35,9 +35,14 @@
                             "encrypted": true,
                             "validators": [
                                 {
+                                    "type": "regex",
+                                    "errorMsg": "License Key can only contain letters, numbers, and underscores.",
+                                    "pattern": "^[A-Za-z0-9_]+$"
+                                },
+                                {
                                     "type": "string",
-                                    "errorMsg": "Length of License Key should be between 1 and 100",
-                                    "minLength": 1,
+                                    "errorMsg": "Length of License Key should be between 8 and 100",
+                                    "minLength": 8,
                                     "maxLength": 100
                                 }
                             ]
