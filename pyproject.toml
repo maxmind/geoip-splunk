@@ -23,8 +23,6 @@ lint = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.ruff]
-
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
