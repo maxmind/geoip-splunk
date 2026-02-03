@@ -214,6 +214,9 @@ To update all dependencies:
 mise latest uv
 mise latest github:houseabsolute/precious
 
+# After updating mise.toml, regenerate the lock file
+mise lock
+
 # Check for latest Python package versions (example)
 curl -s https://pypi.org/pypi/ruff/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
 
