@@ -199,10 +199,32 @@ python.required = 3.13
 
 ## Dependencies
 
-- **Build dependencies**: in `pyproject.toml` (managed by uv)
-- **Add-on runtime dependencies**: in `package/lib/requirements.txt` (installed into add-on's lib/)
+There are three places where dependencies are managed:
 
-When updating dependencies, check both locations to ensure they stay in sync.
+- **Dev tools**: `mise.toml` - Python, uv, precious (managed by mise)
+- **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
+- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb (installed into add-on's lib/ at build time)
+
+### Updating Dependencies
+
+To update all dependencies:
+
+```bash
+# Check for latest versions of mise tools
+mise latest uv
+mise latest github:houseabsolute/precious
+
+# Check for latest Python package versions (example)
+curl -s https://pypi.org/pypi/ruff/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
+
+# After updating pyproject.toml, sync the lock file
+uv sync
+
+# Verify everything works
+precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
+```
+
+**Important**: Keep Python pinned to 3.13 as that is the latest version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
 ## UCC Framework Behavior
 
