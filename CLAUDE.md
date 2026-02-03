@@ -59,6 +59,9 @@ precious lint -g
 # Format (tidy)
 precious tidy -g
 
+# Splunk Cloud compatibility check (run after build)
+precious lint --command appinspect geoip-1.0.0.tar.gz
+
 # Install to Splunk (requires Splunk 10.2)
 splunk install app /path/to/geoip-1.0.0.tar.gz
 splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
@@ -111,6 +114,13 @@ This IP is good for testing field merging and smallest-network selection.
 ## Linting
 
 Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`).
+
+For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built package:
+```bash
+precious lint --command appinspect geoip-1.0.0.tar.gz
+```
+
+This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`).
 
 ## Key Configuration Files
 

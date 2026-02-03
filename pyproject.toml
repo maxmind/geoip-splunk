@@ -17,6 +17,7 @@ dev = [
 lint = [
     "mypy>=1.19.1",
     "ruff>=0.14.14",
+    "splunk-appinspect>=4.1.2",
 ]
 
 [tool.pytest.ini_options]
