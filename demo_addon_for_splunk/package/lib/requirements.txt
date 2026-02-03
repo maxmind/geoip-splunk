@@ -1,4 +1,4 @@
-splunktaucclib
-splunk-sdk
-solnlib
-maxminddb==2.8.2
+splunktaucclib==8.0.0
+splunk-sdk==2.1.1
+solnlib==7.0.0
+maxminddb==3.0.0
