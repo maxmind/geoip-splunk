@@ -224,7 +224,7 @@ uv sync
 precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 ```
 
-**Important**: Keep Python pinned to 3.13 as that is the latest version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
 ## UCC Framework Behavior
 
