@@ -87,7 +87,7 @@ def _get_reader(name: str) -> maxminddb.Reader:
     return _readers[name]
 
 
-def stream(
+def stream(  # noqa: C901
     command: Command,
     events: Iterator[dict[str, Any]],
 ) -> Iterator[dict[str, Any]]:
@@ -128,6 +128,9 @@ def stream(
         ip_address = event.get(field)
 
         if not ip_address:
+            if logger is None:
+                logger = _get_logger(command.metadata.searchinfo.session_key)
+            logger.debug("Event missing or empty field: %s", field)
             yield event
             continue
 
@@ -143,7 +146,24 @@ def stream(
                 logger.debug("Invalid IP address: %s", ip_address)
                 continue
 
-            if not record or not isinstance(record, dict):
+            if not record:
+                if logger is None:
+                    logger = _get_logger(command.metadata.searchinfo.session_key)
+                logger.debug(
+                    "No record found for IP %s in database %s",
+                    ip_address,
+                    reader.metadata().database_type,
+                )
+                continue
+
+            if not isinstance(record, dict):
+                if logger is None:
+                    logger = _get_logger(command.metadata.searchinfo.session_key)
+                logger.debug(
+                    "Record for IP %s is not a dict: %s",
+                    ip_address,
+                    type(record).__name__,
+                )
                 continue
 
             found_any = True
