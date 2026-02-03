@@ -46,6 +46,38 @@
                     "title": "MaxMind Account"
                 },
                 {
+                    "name": "databases",
+                    "title": "Databases",
+                    "table": {
+                        "header": [
+                            {
+                                "label": "Database Name",
+                                "field": "name"
+                            }
+                        ],
+                        "actions": [
+                            "edit",
+                            "delete"
+                        ]
+                    },
+                    "entity": [
+                        {
+                            "type": "text",
+                            "label": "Database Name",
+                            "field": "name",
+                            "required": true,
+                            "help": "MaxMind database name (e.g., GeoIP2-City, GeoIP2-Anonymous-IP)",
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Database name can only contain letters, numbers, and hyphens.",
+                                    "pattern": "^[A-Za-z0-9-]+$"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
                     "type": "loggingTab"
                 }
             ],
