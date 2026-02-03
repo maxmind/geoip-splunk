@@ -1,3 +1,4 @@
 [tools]
 python = "3.13"
 uv = "latest"
+"github:houseabsolute/precious" = "0.10.2"

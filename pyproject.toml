@@ -13,8 +13,6 @@ dependencies = [
 dev = [
     "maxminddb>=3.0.0",
     "pytest>=8.3.5",
-    "tox>=4.25.0",
-    "tox-uv>=1.25.0",
 ]
 lint = [
     "mypy>=1.15.0",
@@ -73,21 +71,3 @@ strict = true
 [[tool.mypy.overrides]]
 module = ["solnlib", "solnlib.*"]
 ignore_missing_imports = true
-
-[tool.tox]
-env_list = ["3.13", "lint"]
-
-[tool.tox.env_run_base]
-skip_install = true
-dependency_groups = ["dev"]
-pass_env = ["MAXMIND_DB_DIR"]
-commands = [["pytest", "tests"]]
-
-[tool.tox.env.lint]
-description = "Code linting"
-dependency_groups = ["dev", "lint"]
-commands = [
-    ["mypy", "demo_addon_for_splunk/package/bin/maxmind_command.py", "tests"],
-    ["ruff", "check"],
-    ["ruff", "format", "--check", "--diff", "."],
-]

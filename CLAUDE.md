@@ -48,10 +48,13 @@ git submodule update --init       # Initialize test data submodule
 ./build.sh      # Generates output/ directory and .tar.gz package
 
 # Run tests
-uv run tox -e 3.13
+uv run pytest tests
 
 # Lint
-uv run tox -e lint
+precious lint -g
+
+# Format (tidy)
+precious tidy -g
 
 # Install to Splunk (requires Splunk 10.2)
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
@@ -104,7 +107,7 @@ This IP is good for testing field merging and smallest-network selection.
 
 ## Linting
 
-Uses ruff (linting + formatting) and mypy (type checking), orchestrated via tox (`uv run tox -e lint`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `pyproject.toml`.
+Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `.precious.toml` and `pyproject.toml`.
 
 ## Key Configuration Files
 
@@ -248,5 +251,5 @@ splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
 
 ## Key Constraints
 
-- Always run linters (`uv run tox -e lint`), tests (`uv run tox -e 3.13`), and `./build.sh` before considering any changes complete
+- Always run tidying (`precious tidy -g`), linters (`precious lint -g`), tests (`uv run pytest tests`), and `./build.sh` before considering any changes complete
 - The `author` field in `package/default/app.conf` must exactly match the first author name in `package/app.manifest`
