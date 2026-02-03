@@ -23,10 +23,6 @@ lint = [
 testpaths = ["tests"]
 
 [tool.ruff]
-extend-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 
 [tool.ruff.lint]
 select = ["ALL"]

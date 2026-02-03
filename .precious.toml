@@ -1,10 +1,6 @@
 [commands.ruff-format]
 type = "both"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "ruff", "format", "--quiet"]
 lint-flags = ["--check", "--diff"]
@@ -13,10 +9,6 @@ ok-exit-codes = 0
 [commands.ruff-check]
 type = "both"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "ruff", "check"]
 tidy-flags = ["--fix"]
@@ -25,10 +17,6 @@ ok-exit-codes = 0
 [commands.mypy]
 type = "lint"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "mypy"]
 ok-exit-codes = 0

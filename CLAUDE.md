@@ -60,14 +60,14 @@ precious lint -g
 precious tidy -g
 
 # Install to Splunk (requires Splunk 10.2)
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz -update true  # Update existing
+splunk install app /path/to/geoip-1.0.0.tar.gz
+splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
 ```
 
 ## Project Structure
 
 ```
-demo_addon_for_splunk/
+geoip/
 ├── globalConfig.json      # Main configuration file for UCC framework
 ├── package/
 │   ├── app.manifest       # Add-on metadata (author, version, description)
@@ -110,7 +110,7 @@ This IP is good for testing field merging and smallest-network selection.
 
 ## Linting
 
-Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `.precious.toml` and `pyproject.toml`.
+Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`).
 
 ## Key Configuration Files
 
@@ -182,7 +182,7 @@ JSON file with add-on metadata. Note: The `version` field here should match `glo
 Custom settings merged into the generated `app.conf`. Example:
 ```ini
 [launcher]
-author = William Storey
+author = MaxMind
 ```
 
 ### package/default/commands.conf
@@ -272,9 +272,9 @@ In Splunk 10.2+, `python.version` is deprecated. Use `python.required` instead:
 
 When reinstalling, fully remove the old app first to avoid cached libraries:
 ```bash
-splunk remove app demo_addon_for_splunk
+splunk remove app geoip
 splunk restart
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
+splunk install app /path/to/geoip-1.0.0.tar.gz
 ```
 
 ## Logging in Custom Search Commands

@@ -183,7 +183,7 @@ def stream(  # noqa: C901
         yield event
 
 
-_APP_NAME = "demo_addon_for_splunk"
+_APP_NAME = "geoip"
 _CONF_NAME = f"{_APP_NAME}_settings"
 
 

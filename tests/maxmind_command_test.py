@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class MockSearchInfo:
     """Mock Splunk search info."""
 
-    app: str = "demo_addon_for_splunk"
+    app: str = "geoip"
     session_key: str = "test_session_key"
 
 
