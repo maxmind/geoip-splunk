@@ -4,12 +4,35 @@ Uses test data from the MaxMind-DB submodule. Test IPs are from
 GeoIP2-Country-Test.mmdb which contains known test data.
 """
 
+from typing import TYPE_CHECKING
+
 import maxmind_command
 import pytest
+
+if TYPE_CHECKING:
+    from maxmind_command import Metadata, SearchInfo
+
+
+class MockSearchInfo:
+    """Mock Splunk search info."""
+
+    app: str = "demo_addon_for_splunk"
+    session_key: str = "test_session_key"
+
+
+class MockMetadata:
+    """Mock Splunk command metadata."""
+
+    searchinfo: "SearchInfo"
+
+    def __init__(self) -> None:
+        self.searchinfo = MockSearchInfo()
 
 
 class MockCommand:
     """Mock command object that provides field, prefix, and databases attributes."""
+
+    metadata: "Metadata"
 
     def __init__(
         self,
@@ -20,6 +43,7 @@ class MockCommand:
         self.field = field
         self.prefix = prefix
         self.databases = databases
+        self.metadata = MockMetadata()
 
 
 # Expected results from GeoIP2-Country-Test.mmdb for test IPs.

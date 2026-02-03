@@ -13,15 +13,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
 
-_LOGGER_NAME = "geoip"
-
 try:
-    from solnlib import log
+    from solnlib import conf_manager
+    from solnlib import log as solnlib_log
 
-    _logger = log.Logs().get_logger(_LOGGER_NAME)
+    _HAS_SOLNLIB = True
 except ImportError:
-    _logger = logging.getLogger(_LOGGER_NAME)
-_logger.setLevel(logging.INFO)
+    _HAS_SOLNLIB = False
+
+
+class SearchInfo(Protocol):
+    """Protocol for Splunk search info metadata."""
+
+    app: str
+    session_key: str
+
+
+class Metadata(Protocol):
+    """Protocol for Splunk command metadata."""
+
+    searchinfo: SearchInfo
 
 
 class Command(Protocol):
@@ -30,6 +41,7 @@ class Command(Protocol):
     databases: str
     field: str
     prefix: str
+    metadata: Metadata
 
 
 # Cache of open database readers, keyed by database name
@@ -110,6 +122,7 @@ def stream(
     readers = [_get_reader(name) for name in database_names]
     field = command.field
     prefix = command.prefix
+    logger: logging.Logger | None = None
 
     for event in events:
         ip_address = event.get(field)
@@ -125,7 +138,9 @@ def stream(
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                _logger.debug("Invalid IP address: %s", ip_address)
+                if logger is None:
+                    logger = _get_logger(command.metadata.searchinfo.session_key)
+                logger.debug("Invalid IP address: %s", ip_address)
                 continue
 
             if not record or not isinstance(record, dict):
@@ -146,6 +161,28 @@ def stream(
         event[f"{prefix}network"] = str(network)
 
         yield event
+
+
+_APP_NAME = "demo_addon_for_splunk"
+_CONF_NAME = f"{_APP_NAME}_settings"
+
+
+def _get_logger(session_key: str) -> logging.Logger:
+    """Get a logger configured with the app's log level setting."""
+    if not _HAS_SOLNLIB:
+        fallback = logging.getLogger(_APP_NAME)
+        fallback.setLevel(logging.INFO)
+        return fallback
+
+    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
+    log_level = conf_manager.get_log_level(
+        logger=logger,
+        session_key=session_key,
+        app_name=_APP_NAME,
+        conf_name=_CONF_NAME,
+    )
+    logger.setLevel(log_level)
+    return logger
 
 
 def _flatten_record(record: dict[str, Any]) -> Iterator[tuple[str, Any]]:

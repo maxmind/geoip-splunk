@@ -29,7 +29,10 @@ End-user documentation is in `package/README.txt`.
 
 ### Command Architecture
 
-The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with `databases`, `field`, and `prefix` attributes.
+The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+- `databases`, `field`, `prefix` - command arguments
+- `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
+- `metadata.searchinfo.app` - the app name
 
 Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
@@ -273,6 +276,47 @@ splunk remove app demo_addon_for_splunk
 splunk restart
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
 ```
+
+## Logging in Custom Search Commands
+
+Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`. The log level is configured via the Logging tab in the add-on's UI.
+
+### Setup Pattern
+
+```python
+# At module level - import solnlib if available
+try:
+    from solnlib import conf_manager
+    from solnlib import log as solnlib_log
+    _HAS_SOLNLIB = True
+except ImportError:
+    _HAS_SOLNLIB = False
+
+# Logger creation function (called lazily when needed)
+def _get_logger(session_key: str) -> logging.Logger:
+    if not _HAS_SOLNLIB:
+        fallback = logging.getLogger(_APP_NAME)
+        fallback.setLevel(logging.INFO)
+        return fallback
+
+    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
+    log_level = conf_manager.get_log_level(
+        logger=logger,
+        session_key=session_key,
+        app_name=_APP_NAME,
+        conf_name=f"{_APP_NAME}_settings",
+    )
+    logger.setLevel(log_level)
+    return logger
+```
+
+### Key Points
+
+- **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
+- **Session key**: Required to read log level from settings. Available via `command.metadata.searchinfo.session_key` in streaming commands
+- **Lazy initialization**: Create the logger only when needed (e.g., inside exception handlers) to avoid overhead when no logging occurs
+- **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
+- **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
 
 ## Key Constraints
 
