@@ -1,7 +1,9 @@
 """Shared utilities for the GeoIP add-on."""
 
 import logging
+import os
 from functools import lru_cache
+from pathlib import Path
 
 try:
     from solnlib import conf_manager
@@ -14,6 +16,38 @@ except ImportError:
 
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
+
+
+def get_database_directory() -> Path:
+    """Get the directory where MaxMind databases are stored.
+
+    Database storage location: $SPLUNK_HOME/etc/apps/geoip/local/data/
+
+    Why /local/data/:
+    - The /local/ directory is preserved across add-on upgrades
+    - Apps can write to their own /local/ directory in both Enterprise and Cloud
+    - Using a /data/ subdirectory keeps databases separate from .conf files
+
+    Why NOT other locations:
+    - /default/ or package /data/: Overwritten on upgrades, read-only after install
+    - $SPLUNK_HOME/var/lib/splunk/: Not a standard app data location
+    - $SPLUNK_HOME/share/: System directory, not for app data
+    - KV Store: Only for structured data, not binary files like .mmdb
+
+    References:
+    - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Apparchitectureandobjectownership
+    - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Configurationfiledirectories
+
+    Returns:
+        Path to the database directory.
+
+    """
+    # Allow override via environment variable (for testing)
+    if env_dir := os.environ.get("MAXMIND_DB_DIR"):
+        return Path(env_dir)
+
+    splunk_home = os.environ.get("SPLUNK_HOME", "/opt/splunk")
+    return Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
 
 
 @lru_cache(maxsize=1)

@@ -11,7 +11,7 @@ from typing import Any, Protocol
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
-from geoip_utils import get_logger
+from geoip_utils import get_database_directory, get_logger
 
 
 class SearchInfo(Protocol):
@@ -124,21 +124,20 @@ def stream(
         yield event
 
 
-# Cache of open database readers, keyed by database name
+# Cache of open database readers, keyed by database name.
+#
+# No mtime-based invalidation needed: Splunk spawns a fresh Python process
+# for each search, so this cache starts empty and databases are always
+# freshly opened. If the updater writes a new database file between
+# searches, the next search automatically loads the updated version.
+#
+# The cache is still useful within a single search to avoid reopening
+# the database for each batch of events (chunked streaming commands
+# receive multiple batches in the same process).
 _readers: dict[str, maxminddb.Reader] = {}
 
 # Valid database name pattern (alphanumeric and hyphens only)
 _VALID_DB_NAME = re.compile(r"^[A-Za-z0-9-]+$")
-
-# Directory containing MaxMind databases
-# TODO: We need to be able to re-open databases when there are updates.
-# TODO: We need to be able to download databases rather than assume they are
-# available in the add-on directly.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_db_dir = os.environ.get(
-    "MAXMIND_DB_DIR",
-    os.path.join(_script_dir, "..", "data"),
-)
 
 
 def _get_reader(name: str) -> maxminddb.Reader:
@@ -159,7 +158,8 @@ def _get_reader(name: str) -> maxminddb.Reader:
         msg = f"Invalid database name: {name}"
         raise ValueError(msg)
     if name not in _readers:
-        db_path = Path(_db_dir, f"{name}.mmdb")
+        db_dir = get_database_directory()
+        db_path = Path(db_dir, f"{name}.mmdb")
         if not db_path.exists():
             msg = f"Database not found: {db_path}"
             raise FileNotFoundError(msg)

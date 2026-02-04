@@ -15,7 +15,6 @@ dev = [
     "filelock>=3.12.0,<4.0.0",
     "maxminddb>=3.0.0",
     "pytest>=9.0.2",
-    "pytest-asyncio>=0.24.0",
     "pytest-httpserver>=1.0.10",
     "tenacity>=8.2.0,<10.0.0",
 ]
@@ -45,12 +44,6 @@ ignore = [
     "PTH118",
     # PTH120: os.path.dirname - pathlib not always better for simple cases
     "PTH120",
-    # TD002: Missing author in TODO - not needed for this project
-    "TD002",
-    # TD003: Missing issue link in TODO - not needed for this project
-    "TD003",
-    # FIX002: Line contains TODO - TODOs are allowed
-    "FIX002",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -67,6 +60,7 @@ ignore = [
 
 [tool.mypy]
 strict = true
+mypy_path = "geoip/package/bin:geoip/package/lib"
 
 [[tool.mypy.overrides]]
 module = ["solnlib", "solnlib.*"]
@@ -74,4 +68,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["geoipupdate", "geoipupdate.*"]
-ignore_errors = true
+ignore_missing_imports = true
+# geoipupdate is vendored; check types but suppress errors in vendored code
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = ["geoipupdate_input", "geoip_utils"]
+ignore_missing_imports = true
