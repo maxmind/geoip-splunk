@@ -45,49 +45,6 @@ class Command(Protocol):
     metadata: Metadata
 
 
-# Cache of open database readers, keyed by database name
-_readers: dict[str, maxminddb.Reader] = {}
-
-# Valid database name pattern (alphanumeric and hyphens only)
-_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9-]+$")
-
-# Directory containing MaxMind databases
-# TODO: We need to be able to re-open databases when there are updates.
-# TODO: We need to be able to download databases rather than assume they are
-# available in the add-on directly.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_db_dir = os.environ.get(
-    "MAXMIND_DB_DIR",
-    os.path.join(_script_dir, "..", "data"),
-)
-
-
-def _get_reader(name: str) -> maxminddb.Reader:
-    """Get a database reader, opening it if not already cached.
-
-    Args:
-        name: The database name (e.g., 'GeoIP2-Country')
-
-    Returns:
-        The maxminddb.Reader for the database
-
-    Raises:
-        ValueError: If the database name contains invalid characters
-        FileNotFoundError: If the database file doesn't exist
-
-    """
-    if not _VALID_DB_NAME.match(name):
-        msg = f"Invalid database name: {name}"
-        raise ValueError(msg)
-    if name not in _readers:
-        db_path = Path(_db_dir, f"{name}.mmdb")
-        if not db_path.exists():
-            msg = f"Database not found: {db_path}"
-            raise FileNotFoundError(msg)
-        _readers[name] = maxminddb.open_database(str(db_path))
-    return _readers[name]
-
-
 def stream(
     command: Command,
     events: Iterator[dict[str, Any]],
@@ -174,6 +131,49 @@ def stream(
         event[f"{prefix}network"] = str(network)
 
         yield event
+
+
+# Cache of open database readers, keyed by database name
+_readers: dict[str, maxminddb.Reader] = {}
+
+# Valid database name pattern (alphanumeric and hyphens only)
+_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9-]+$")
+
+# Directory containing MaxMind databases
+# TODO: We need to be able to re-open databases when there are updates.
+# TODO: We need to be able to download databases rather than assume they are
+# available in the add-on directly.
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_db_dir = os.environ.get(
+    "MAXMIND_DB_DIR",
+    os.path.join(_script_dir, "..", "data"),
+)
+
+
+def _get_reader(name: str) -> maxminddb.Reader:
+    """Get a database reader, opening it if not already cached.
+
+    Args:
+        name: The database name (e.g., 'GeoIP2-Country')
+
+    Returns:
+        The maxminddb.Reader for the database
+
+    Raises:
+        ValueError: If the database name contains invalid characters
+        FileNotFoundError: If the database file doesn't exist
+
+    """
+    if not _VALID_DB_NAME.match(name):
+        msg = f"Invalid database name: {name}"
+        raise ValueError(msg)
+    if name not in _readers:
+        db_path = Path(_db_dir, f"{name}.mmdb")
+        if not db_path.exists():
+            msg = f"Database not found: {db_path}"
+            raise FileNotFoundError(msg)
+        _readers[name] = maxminddb.open_database(str(db_path))
+    return _readers[name]
 
 
 _APP_NAME = "geoip"
