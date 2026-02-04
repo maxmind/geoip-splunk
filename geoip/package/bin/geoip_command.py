@@ -1,11 +1,9 @@
 """MaxMind database lookup streaming command for Splunk."""
 
-import logging
 import os
 import re
 import sys
 from collections.abc import Iterator
-from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
 from typing import Any, Protocol
@@ -13,14 +11,7 @@ from typing import Any, Protocol
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
-
-try:
-    from solnlib import conf_manager
-    from solnlib import log as solnlib_log
-
-    _HAS_SOLNLIB = True
-except ImportError:
-    _HAS_SOLNLIB = False
+from geoip_utils import get_logger
 
 
 class SearchInfo(Protocol):
@@ -86,7 +77,7 @@ def stream(
         ip_address = event.get(field)
 
         if not ip_address:
-            _get_logger(session_key).debug("Event missing or empty field: %s", field)
+            get_logger(session_key).debug("Event missing or empty field: %s", field)
             yield event
             continue
 
@@ -97,11 +88,11 @@ def stream(
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                _get_logger(session_key).debug("Invalid IP address: %s", ip_address)
+                get_logger(session_key).debug("Invalid IP address: %s", ip_address)
                 continue
 
             if not record:
-                _get_logger(session_key).debug(
+                get_logger(session_key).debug(
                     "No record found for IP %s in database %s",
                     ip_address,
                     reader.metadata().database_type,
@@ -109,7 +100,7 @@ def stream(
                 continue
 
             if not isinstance(record, dict):
-                _get_logger(session_key).debug(
+                get_logger(session_key).debug(
                     "Record for IP %s is not a dict: %s",
                     ip_address,
                     type(record).__name__,
@@ -174,35 +165,6 @@ def _get_reader(name: str) -> maxminddb.Reader:
             raise FileNotFoundError(msg)
         _readers[name] = maxminddb.open_database(str(db_path))
     return _readers[name]
-
-
-_APP_NAME = "geoip"
-_CONF_NAME = f"{_APP_NAME}_settings"
-
-
-@lru_cache(maxsize=1)
-def _get_logger(session_key: str) -> logging.Logger:
-    """Get a logger configured with the app's log level setting.
-
-    The result is cached to avoid repeated REST API calls. Only one logger
-    is cached; concurrent searches with different session keys will evict
-    each other's cached loggers, but this is acceptable since the log level
-    setting is global anyway.
-    """
-    if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(_APP_NAME)
-        fallback.setLevel(logging.INFO)
-        return fallback
-
-    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
-    log_level = conf_manager.get_log_level(
-        logger=logger,
-        session_key=session_key,
-        app_name=_APP_NAME,
-        conf_name=_CONF_NAME,
-    )
-    logger.setLevel(log_level)
-    return logger
 
 
 def _flatten_record(record: dict[str, Any]) -> Iterator[tuple[str, Any]]:
