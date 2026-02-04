@@ -4,189 +4,90 @@
             "tabs": [
                 {
                     "name": "account",
+                    "entity": [
+                        {
+                            "type": "text",
+                            "label": "Account ID",
+                            "field": "account_id",
+                            "help": "Your MaxMind Account ID (found in your MaxMind account portal).",
+                            "required": true,
+                            "encrypted": true,
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "Account ID must be a numeric value.",
+                                    "pattern": "^[0-9]+$"
+                                },
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Length of Account ID should be between 1 and 20",
+                                    "minLength": 1,
+                                    "maxLength": 20
+                                }
+                            ]
+                        },
+                        {
+                            "type": "text",
+                            "label": "License Key",
+                            "field": "license_key",
+                            "help": "Your MaxMind License Key (generate in your MaxMind account under 'Manage License Keys').",
+                            "required": true,
+                            "encrypted": true,
+                            "validators": [
+                                {
+                                    "type": "regex",
+                                    "errorMsg": "License Key can only contain letters, numbers, and underscores.",
+                                    "pattern": "^[A-Za-z0-9_]+$"
+                                },
+                                {
+                                    "type": "string",
+                                    "errorMsg": "Length of License Key should be between 8 and 100",
+                                    "minLength": 8,
+                                    "maxLength": 100
+                                }
+                            ]
+                        }
+                    ],
+                    "title": "MaxMind Account"
+                },
+                {
+                    "name": "databases",
+                    "title": "Databases",
                     "table": {
-                        "actions": [
-                            "edit",
-                            "delete",
-                            "clone"
-                        ],
                         "header": [
                             {
-                                "label": "Name",
+                                "label": "Database Name",
                                 "field": "name"
                             }
+                        ],
+                        "actions": [
+                            "edit",
+                            "delete"
                         ]
                     },
                     "entity": [
                         {
                             "type": "text",
-                            "label": "Name",
+                            "label": "Database Name",
+                            "field": "name",
+                            "required": true,
+                            "help": "MaxMind database name (e.g., GeoIP2-City, GeoIP2-Anonymous-IP)",
                             "validators": [
                                 {
                                     "type": "regex",
-                                    "errorMsg": "Account Name must begin with a letter and consist exclusively of alphanumeric characters and underscores.",
-                                    "pattern": "^[a-zA-Z]\\w*$"
-                                },
-                                {
-                                    "type": "string",
-                                    "errorMsg": "Length of input name should be between 1 and 100",
-                                    "minLength": 1,
-                                    "maxLength": 100
-                                }
-                            ],
-                            "field": "name",
-                            "help": "A unique name for the account.",
-                            "required": true
-                        },
-                        {
-                            "type": "text",
-                            "label": "API key",
-                            "field": "api_key",
-                            "help": "API key",
-                            "required": true,
-                            "encrypted": true,
-                            "validators": [
-                                {
-                                    "type": "string",
-                                    "errorMsg": "Length of API key should be between 1 and 50",
-                                    "minLength": 1,
-                                    "maxLength": 50
+                                    "errorMsg": "Database name can only contain letters, numbers, and hyphens.",
+                                    "pattern": "^[A-Za-z0-9-]+$"
                                 }
                             ]
                         }
-                    ],
-                    "title": "Accounts"
+                    ]
                 },
                 {
                     "type": "loggingTab"
                 }
             ],
             "title": "Configuration",
-            "description": "Set up your add-on"
-        },
-        "inputs": {
-            "services": [
-                {
-                    "name": "demo_input",
-                    "entity": [
-                        {
-                            "type": "text",
-                            "label": "Name",
-                            "validators": [
-                                {
-                                    "type": "regex",
-                                    "errorMsg": "Input Name must begin with a letter and consist exclusively of alphanumeric characters and underscores.",
-                                    "pattern": "^[a-zA-Z]\\w*$"
-                                },
-                                {
-                                    "type": "string",
-                                    "errorMsg": "Length of input name should be between 1 and 100",
-                                    "minLength": 1,
-                                    "maxLength": 100
-                                }
-                            ],
-                            "field": "name",
-                            "help": "A unique name for the data input.",
-                            "required": true
-                        },
-                        {
-                            "type": "interval",
-                            "label": "Interval",
-                            "defaultValue": "300",
-                            "field": "interval",
-                            "options": {
-                                "range": [
-                                    10,
-                                    301
-                                ]
-                            },
-                            "help": "Time interval of the data input, in seconds.",
-                            "required": true
-                        },
-                        {
-                            "type": "index",
-                            "field": "index",
-                            "label": "Index"
-                        },
-                        {
-                            "type": "singleSelect",
-                            "label": "Account to use",
-                            "options": {
-                                "referenceName": "account"
-                            },
-                            "help": "Account to use for this input.",
-                            "field": "account",
-                            "required": true,
-                            "validators": [
-                                {
-                                    "type": "string",
-                                    "errorMsg": "Length of account name should be between 1 and 100",
-                                    "minLength": 1,
-                                    "maxLength": 100
-                                }
-                            ]
-                        }
-                    ],
-                    "inputHelperModule": "demo_input_helper",
-                    "title": "demo_input"
-                }
-            ],
-            "title": "Inputs",
-            "description": "Manage your data inputs",
-            "table": {
-                "actions": [
-                    "edit",
-                    "delete",
-                    "clone"
-                ],
-                "header": [
-                    {
-                        "label": "Name",
-                        "field": "name"
-                    },
-                    {
-                        "label": "Interval",
-                        "field": "interval"
-                    },
-                    {
-                        "label": "Index",
-                        "field": "index"
-                    },
-                    {
-                        "label": "Status",
-                        "field": "disabled"
-                    }
-                ],
-                "moreInfo": [
-                    {
-                        "label": "Name",
-                        "field": "name"
-                    },
-                    {
-                        "label": "Interval",
-                        "field": "interval"
-                    },
-                    {
-                        "label": "Index",
-                        "field": "index"
-                    },
-                    {
-                        "label": "Status",
-                        "field": "disabled",
-                        "mapping": {
-                            "true": "Inactive",
-                            "false": "Active"
-                        }
-                    }
-                ]
-            }
-        },
-        "dashboard": {
-            "panels": [
-                {
-                    "name": "default"
-                }
-            ]
+            "description": "Configure your MaxMind account and databases"
         }
     },
     "meta": {

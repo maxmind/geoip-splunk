@@ -29,7 +29,10 @@ End-user documentation is in `package/README.txt`.
 
 ### Command Architecture
 
-The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with `databases`, `field`, and `prefix` attributes.
+The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+- `databases`, `field`, `prefix` - command arguments
+- `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
+- `metadata.searchinfo.app` - the app name
 
 Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
@@ -48,10 +51,13 @@ git submodule update --init       # Initialize test data submodule
 ./build.sh      # Generates output/ directory and .tar.gz package
 
 # Run tests
-uv run tox -e 3.13
+uv run pytest tests
 
 # Lint
-uv run tox -e lint
+precious lint -g
+
+# Format (tidy)
+precious tidy -g
 
 # Install to Splunk (requires Splunk 10.2)
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
@@ -104,21 +110,63 @@ This IP is good for testing field merging and smallest-network selection.
 
 ## Linting
 
-Uses ruff (linting + formatting) and mypy (type checking), orchestrated via tox (`uv run tox -e lint`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `pyproject.toml`.
+Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `.precious.toml` and `pyproject.toml`.
 
 ## Key Configuration Files
 
 ### globalConfig.json
 
 The main UCC configuration file. Defines:
-- Input types and their parameters
 - Configuration tabs (accounts, logging)
 - Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
 
+#### Configuration Tab Types
+
+Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or **single-instance forms**:
+
+**Multi-instance table** (for multiple accounts/configurations):
+```json
+{
+    "name": "account",
+    "table": {
+        "actions": ["edit", "delete", "clone"],
+        "header": [{"label": "Name", "field": "name"}]
+    },
+    "entity": [
+        {"field": "name", "required": true, ...},
+        {"field": "api_key", "encrypted": true, ...}
+    ],
+    "title": "Accounts"
+}
+```
+- Has `table` property with actions and header columns
+- Requires a `name` field to identify each instance
+- UI shows a table with add/edit/delete actions
+
+**Single-instance form** (for one set of settings):
+```json
+{
+    "name": "account",
+    "entity": [
+        {"field": "account_id", "encrypted": true, ...},
+        {"field": "license_key", "encrypted": true, ...}
+    ],
+    "title": "MaxMind Account"
+}
+```
+- No `table` property
+- No `name` field needed
+- UI shows a simple form with save button
+
+#### Field Encryption
+
+Use `"encrypted": true` on sensitive fields (API keys, passwords). UCC stores these in Splunk's secure credential storage (`passwords.conf`) rather than plain text config files.
+
 ### package/app.manifest
 
-JSON file with add-on metadata:
+JSON file with add-on metadata. Note: The `version` field here should match `globalConfig.json` for consistency, but UCC uses the version from `globalConfig.json` as the source of truth and overwrites `app.manifest` during build.
+
 ```json
 {
   "info": {
@@ -154,10 +202,35 @@ python.required = 3.13
 
 ## Dependencies
 
-- **Build dependencies**: in `pyproject.toml` (managed by uv)
-- **Add-on runtime dependencies**: in `package/lib/requirements.txt` (installed into add-on's lib/)
+There are three places where dependencies are managed:
 
-When updating dependencies, check both locations to ensure they stay in sync.
+- **Dev tools**: `mise.toml` - Python, uv, precious (managed by mise)
+- **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
+- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb (installed into add-on's lib/ at build time)
+
+### Updating Dependencies
+
+To update all dependencies:
+
+```bash
+# Check for latest versions of mise tools
+mise latest uv
+mise latest github:houseabsolute/precious
+
+# After updating mise.toml, regenerate the lock file
+mise lock
+
+# Check for latest Python package versions (example)
+curl -s https://pypi.org/pypi/ruff/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
+
+# After updating pyproject.toml, sync the lock file
+uv sync
+
+# Verify everything works
+precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
+```
+
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
 ## UCC Framework Behavior
 
@@ -204,7 +277,48 @@ splunk restart
 splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
 ```
 
+## Logging in Custom Search Commands
+
+Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`. The log level is configured via the Logging tab in the add-on's UI.
+
+### Setup Pattern
+
+```python
+# At module level - import solnlib if available
+try:
+    from solnlib import conf_manager
+    from solnlib import log as solnlib_log
+    _HAS_SOLNLIB = True
+except ImportError:
+    _HAS_SOLNLIB = False
+
+# Logger creation function (called lazily when needed)
+def _get_logger(session_key: str) -> logging.Logger:
+    if not _HAS_SOLNLIB:
+        fallback = logging.getLogger(_APP_NAME)
+        fallback.setLevel(logging.INFO)
+        return fallback
+
+    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
+    log_level = conf_manager.get_log_level(
+        logger=logger,
+        session_key=session_key,
+        app_name=_APP_NAME,
+        conf_name=f"{_APP_NAME}_settings",
+    )
+    logger.setLevel(log_level)
+    return logger
+```
+
+### Key Points
+
+- **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
+- **Session key**: Required to read log level from settings. Available via `command.metadata.searchinfo.session_key` in streaming commands
+- **Lazy initialization**: Create the logger only when needed (e.g., inside exception handlers) to avoid overhead when no logging occurs
+- **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
+- **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
+
 ## Key Constraints
 
-- Always run linters (`uv run tox -e lint`), tests (`uv run tox -e 3.13`), and `./build.sh` before considering any changes complete
+- Always run tidying (`precious tidy -g`), linters (`precious lint -g`), tests (`uv run pytest tests`), and `./build.sh` before considering any changes complete
 - The `author` field in `package/default/app.conf` must exactly match the first author name in `package/app.manifest`
