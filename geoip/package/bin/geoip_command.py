@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from collections.abc import Iterator
+from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
 from typing import Any, Protocol
@@ -87,7 +88,7 @@ def _get_reader(name: str) -> maxminddb.Reader:
     return _readers[name]
 
 
-def stream(  # noqa: C901
+def stream(
     command: Command,
     events: Iterator[dict[str, Any]],
 ) -> Iterator[dict[str, Any]]:
@@ -122,15 +123,13 @@ def stream(  # noqa: C901
     readers = [_get_reader(name) for name in database_names]
     field = command.field
     prefix = command.prefix
-    logger: logging.Logger | None = None
+    session_key = command.metadata.searchinfo.session_key
 
     for event in events:
         ip_address = event.get(field)
 
         if not ip_address:
-            if logger is None:
-                logger = _get_logger(command.metadata.searchinfo.session_key)
-            logger.debug("Event missing or empty field: %s", field)
+            _get_logger(session_key).debug("Event missing or empty field: %s", field)
             yield event
             continue
 
@@ -141,15 +140,11 @@ def stream(  # noqa: C901
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug("Invalid IP address: %s", ip_address)
+                _get_logger(session_key).debug("Invalid IP address: %s", ip_address)
                 continue
 
             if not record:
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug(
+                _get_logger(session_key).debug(
                     "No record found for IP %s in database %s",
                     ip_address,
                     reader.metadata().database_type,
@@ -157,9 +152,7 @@ def stream(  # noqa: C901
                 continue
 
             if not isinstance(record, dict):
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug(
+                _get_logger(session_key).debug(
                     "Record for IP %s is not a dict: %s",
                     ip_address,
                     type(record).__name__,
@@ -187,8 +180,15 @@ _APP_NAME = "geoip"
 _CONF_NAME = f"{_APP_NAME}_settings"
 
 
+@lru_cache(maxsize=1)
 def _get_logger(session_key: str) -> logging.Logger:
-    """Get a logger configured with the app's log level setting."""
+    """Get a logger configured with the app's log level setting.
+
+    The result is cached to avoid repeated REST API calls. Only one logger
+    is cached; concurrent searches with different session keys will evict
+    each other's cached loggers, but this is acceptable since the log level
+    setting is global anyway.
+    """
     if not _HAS_SOLNLIB:
         fallback = logging.getLogger(_APP_NAME)
         fallback.setLevel(logging.INFO)

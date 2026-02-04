@@ -287,34 +287,26 @@ splunk restart
 splunk install app /path/to/geoip-1.0.0.tar.gz
 ```
 
-## Logging in Custom Search Commands
+## Logging
 
 Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`. The log level is configured via the Logging tab in the add-on's UI.
 
-### Setup Pattern
+The shared `get_logger(session_key)` function in `geoip_utils.py` is used by all modules (search command, modular input, REST handlers). It's decorated with `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level setting.
 
 ```python
-# At module level - import solnlib if available
-try:
-    from solnlib import conf_manager
-    from solnlib import log as solnlib_log
-    _HAS_SOLNLIB = True
-except ImportError:
-    _HAS_SOLNLIB = False
-
-# Logger creation function (called lazily when needed)
-def _get_logger(session_key: str) -> logging.Logger:
+@lru_cache(maxsize=1)
+def get_logger(session_key: str) -> logging.Logger:
     if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(_APP_NAME)
+        fallback = logging.getLogger(APP_NAME)
         fallback.setLevel(logging.INFO)
         return fallback
 
-    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
+    logger: logging.Logger = solnlib_log.Logs().get_logger(APP_NAME)
     log_level = conf_manager.get_log_level(
         logger=logger,
         session_key=session_key,
-        app_name=_APP_NAME,
-        conf_name=f"{_APP_NAME}_settings",
+        app_name=APP_NAME,
+        conf_name=CONF_NAME,
     )
     logger.setLevel(log_level)
     return logger
@@ -324,7 +316,7 @@ def _get_logger(session_key: str) -> logging.Logger:
 
 - **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
 - **Session key**: Required to read log level from settings. Available via `command.metadata.searchinfo.session_key` in streaming commands
-- **Lazy initialization**: Create the logger only when needed (e.g., inside exception handlers) to avoid overhead when no logging occurs
+- **Caching**: The logger is cached with `lru_cache` so only the first call per process makes a REST API call. Only one entry is cached; concurrent searches with different session keys evict each other, which is fine since the log level is global
 - **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
 - **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
 
