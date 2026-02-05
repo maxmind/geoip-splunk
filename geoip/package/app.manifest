@@ -43,7 +43,11 @@
     "dependencies": null,
     "tasks": null,
     "inputGroups": null,
-    "incompatibleApps": null,
+    "incompatibleApps": {
+        "TA-geoip2": {
+            "version": "*"
+        }
+    },
     "platformRequirements": null,
     "supportedDeployments": [
         "_standalone",

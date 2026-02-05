@@ -100,3 +100,10 @@ This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.
 All MaxMind databases are supported.
 
 Database files must be placed in the add-on's data directory.
+
+## Incompatibility Notice
+
+This add-on is incompatible with
+[MaxMind GeoIP2 Add-on for Splunk (TA-geoip2)](https://splunkbase.splunk.com/app/6169).
+Both add-ons provide a `geoip` search command, so only one can be installed at
+a time.
