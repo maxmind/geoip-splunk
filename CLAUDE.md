@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`maxmind`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
+This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`geoip`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
 
-## The maxmind Command
+## The geoip Command
 
 ```
-| maxmind [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
 - `databases` (required): Comma-separated list of database names. **Must be quoted if multiple** (e.g., `databases="GeoIP2-Country,GeoIP2-Anonymous-IP"`)
@@ -25,11 +25,11 @@ Behavior:
 - Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
 - Events with missing, empty, invalid, or not-found IPs pass through unchanged
 
-End-user documentation is in `package/README.txt`.
+End-user documentation is in `package/README.md`.
 
 ### Command Architecture
 
-The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+The command implementation in `geoip_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
 - `databases`, `field`, `prefix` - command arguments
 - `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
 - `metadata.searchinfo.app` - the app name
@@ -59,19 +59,22 @@ precious lint -g
 # Format (tidy)
 precious tidy -g
 
+# Splunk Cloud compatibility check (run after build)
+precious lint --command appinspect geoip-1.0.0.tar.gz
+
 # Install to Splunk (requires Splunk 10.2)
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz -update true  # Update existing
+splunk install app /path/to/geoip-1.0.0.tar.gz
+splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
 ```
 
 ## Project Structure
 
 ```
-demo_addon_for_splunk/
+geoip/
 ├── globalConfig.json      # Main configuration file for UCC framework
 ├── package/
 │   ├── app.manifest       # Add-on metadata (author, version, description)
-│   ├── README.txt         # End-user documentation (included in package)
+│   ├── README.md          # End-user documentation (included in package)
 │   ├── default/
 │   │   ├── app.conf       # Splunk app configuration (merged with generated)
 │   │   └── commands.conf  # Search command configuration (replaces generated)
@@ -91,7 +94,7 @@ tests/
 ├── conftest.py              # Sets MAXMIND_DB_DIR to test database directory
 ├── data/                    # MaxMind-DB submodule (git submodule)
 │   └── test-data/           # Contains test .mmdb files
-└── maxmind_command_test.py  # Tests using various test databases
+└── geoip_command_test.py    # Tests using various test databases
 ```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
@@ -110,7 +113,14 @@ This IP is good for testing field merging and smallest-network selection.
 
 ## Linting
 
-Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`). UCC-generated files like `demo_input_helper.py` are excluded from linting in `.precious.toml` and `pyproject.toml`.
+Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`).
+
+For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built package:
+```bash
+precious lint --command appinspect geoip-1.0.0.tar.gz
+```
+
+This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`).
 
 ## Key Configuration Files
 
@@ -182,15 +192,15 @@ JSON file with add-on metadata. Note: The `version` field here should match `glo
 Custom settings merged into the generated `app.conf`. Example:
 ```ini
 [launcher]
-author = William Storey
+author = MaxMind
 ```
 
 ### package/default/commands.conf
 
 Custom search command configuration. Unlike `app.conf`, UCC **replaces** (not merges) this file, so you must include all required settings:
 ```ini
-[maxmind]
-filename = maxmind.py
+[geoip]
+filename = geoip.py
 chunked = true
 python.version = python3
 python.required = 3.13
@@ -239,26 +249,26 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 - For `commands.conf`: UCC **replaces** the generated file entirely with yours (include all required settings)
 - UCC automatically sets `python.version = python3` in generated `commands.conf` and `inputs.conf`
 - Warning about "not auto generated by UCC framework" for custom settings is expected
-- `ucc-gen init` creates a `README.md` in the addon source directory, but it's not needed and doesn't get included in the output package. Use `package/README.txt` for end-user documentation instead.
+- `ucc-gen init` creates a `README.md` in the addon source directory, but it's not needed and doesn't get included in the output package. Use `package/README.md` for end-user documentation instead.
 
 ### Custom Search Command File Naming
 
 UCC generates a wrapper script for custom search commands. The naming works as follows:
 
-- `globalConfig.json` specifies `commandName` (e.g., `"maxmind"`) and `fileName` (e.g., `"maxmind_command.py"`)
-- UCC generates a wrapper named `<commandName>.py` (e.g., `maxmind.py`) that imports from your `fileName`
-- `commands.conf` must reference the **wrapper** name (`filename = maxmind.py`), not the source file
+- `globalConfig.json` specifies `commandName` (e.g., `"geoip"`) and `fileName` (e.g., `"geoip_command.py"`)
+- UCC generates a wrapper named `<commandName>.py` (e.g., `geoip.py`) that imports from your `fileName`
+- `commands.conf` must reference the **wrapper** name (`filename = geoip.py`), not the source file
 
-The generated wrapper (`output/.../bin/maxmind.py`) looks like:
+The generated wrapper (`output/.../bin/geoip.py`) looks like:
 ```python
-from maxmind_command import stream
+from geoip_command import stream
 
-class MaxmindCommand(StreamingCommand):
+class GeoipCommand(StreamingCommand):
     def stream(self, events):
         return stream(self, events)
 ```
 
-So the source file (`maxmind_command.py`) and wrapper (`maxmind.py`) are intentionally different files.
+So the source file (`geoip_command.py`) and wrapper (`geoip.py`) are intentionally different files.
 
 ## Splunk Python Version Configuration
 
@@ -272,9 +282,9 @@ In Splunk 10.2+, `python.version` is deprecated. Use `python.required` instead:
 
 When reinstalling, fully remove the old app first to avoid cached libraries:
 ```bash
-splunk remove app demo_addon_for_splunk
+splunk remove app geoip
 splunk restart
-splunk install app /path/to/demo_addon_for_splunk-1.0.0.tar.gz
+splunk install app /path/to/geoip-1.0.0.tar.gz
 ```
 
 ## Logging in Custom Search Commands

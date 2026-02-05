@@ -91,10 +91,10 @@
         }
     },
     "meta": {
-        "name": "demo_addon_for_splunk",
-        "restRoot": "demo_addon_for_splunk",
+        "name": "geoip",
+        "restRoot": "geoip",
         "version": "1.0.0",
-        "displayName": "Demo Add-on for Splunk",
+        "displayName": "GeoIP for Splunk",
         "schemaVersion": "0.0.10",
         "supportedThemes": [
             "light",
@@ -103,8 +103,8 @@
     },
     "customSearchCommand": [
         {
-            "commandName": "maxmind",
-            "fileName": "maxmind_command.py",
+            "commandName": "geoip",
+            "fileName": "geoip_command.py",
             "commandType": "streaming",
             "arguments": [
                 {

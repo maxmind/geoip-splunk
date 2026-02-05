@@ -1,10 +1,6 @@
 [commands.ruff-format]
 type = "both"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "ruff", "format", "--quiet"]
 lint-flags = ["--check", "--diff"]
@@ -13,10 +9,6 @@ ok-exit-codes = 0
 [commands.ruff-check]
 type = "both"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "ruff", "check"]
 tidy-flags = ["--fix"]
@@ -25,10 +17,23 @@ ok-exit-codes = 0
 [commands.mypy]
 type = "lint"
 include = ["**/*.py"]
-exclude = [
-    # UCC-generated files
-    "demo_addon_for_splunk/package/bin/demo_input_helper.py",
-]
 invoke = "once"
 cmd = ["uv", "run", "--quiet", "mypy"]
+ok-exit-codes = 0
+
+# Splunk AppInspect validates the built package for Splunk Cloud compatibility.
+[commands.appinspect]
+type = "lint"
+include = ["*.tar.gz"]
+invoke = "once"
+cmd = [
+    "uv", "run", "--quiet",
+    "splunk-appinspect", "inspect",
+    # precert: Run all checks and return all results (vs "test" which is minimal output)
+    "--mode", "precert",
+    # cloud: Run checks required for Splunk Cloud deployment
+    "--included-tags", "cloud",
+    # CRITICAL: Suppress info/warning log messages, only show check results
+    "--log-level", "CRITICAL",
+]
 ok-exit-codes = 0
