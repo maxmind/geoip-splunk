@@ -103,8 +103,8 @@
     },
     "customSearchCommand": [
         {
-            "commandName": "maxmind",
-            "fileName": "maxmind_command.py",
+            "commandName": "geoip",
+            "fileName": "geoip_command.py",
             "commandType": "streaming",
             "arguments": [
                 {

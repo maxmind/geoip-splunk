@@ -1,4 +1,4 @@
-"""Tests for maxmind_command.py.
+"""Tests for geoip_command.py.
 
 Uses test data from the MaxMind-DB submodule. Test IPs are from
 GeoIP2-Country-Test.mmdb which contains known test data.
@@ -6,11 +6,11 @@ GeoIP2-Country-Test.mmdb which contains known test data.
 
 from typing import TYPE_CHECKING
 
-import maxmind_command
+import geoip_command
 import pytest
 
 if TYPE_CHECKING:
-    from maxmind_command import Metadata, SearchInfo
+    from geoip_command import Metadata, SearchInfo
 
 
 class MockSearchInfo:
@@ -156,28 +156,28 @@ EXPECTED_KR = {
 
 def test_valid_ipv4_us() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     assert results == [EXPECTED_US]
 
 
 def test_valid_ipv6_jp() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "2001:218::1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "2001:218::1"}])))
 
     assert results == [EXPECTED_JP]
 
 
 def test_valid_ipv6_kr() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "2001:220::1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "2001:220::1"}])))
 
     assert results == [EXPECTED_KR]
 
 
 def test_invalid_ip_format() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "not.an.ip"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "not.an.ip"}])))
 
     assert results == [{"ip": "not.an.ip"}]
 
@@ -185,28 +185,28 @@ def test_invalid_ip_format() -> None:
 def test_invalid_ip_out_of_range() -> None:
     command = MockCommand(field="ip")
     events = iter([{"ip": "999.999.999.999"}])
-    results = list(maxmind_command.stream(command, events))
+    results = list(geoip_command.stream(command, events))
 
     assert results == [{"ip": "999.999.999.999"}]
 
 
 def test_invalid_ip_empty_string() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": ""}])))
+    results = list(geoip_command.stream(command, iter([{"ip": ""}])))
 
     assert results == [{"ip": ""}]
 
 
 def test_ip_not_in_database() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "8.8.8.8"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "8.8.8.8"}])))
 
     assert results == [{"ip": "8.8.8.8"}]
 
 
 def test_private_ip_not_in_database() -> None:
     command = MockCommand(field="ip")
-    results = list(maxmind_command.stream(command, iter([{"ip": "192.168.1.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "192.168.1.1"}])))
 
     assert results == [{"ip": "192.168.1.1"}]
 
@@ -214,7 +214,7 @@ def test_private_ip_not_in_database() -> None:
 def test_missing_field() -> None:
     command = MockCommand(field="ip")
     events = iter([{"other_field": "value"}])
-    results = list(maxmind_command.stream(command, events))
+    results = list(geoip_command.stream(command, events))
 
     assert results == [{"other_field": "value"}]
 
@@ -226,14 +226,14 @@ def test_multiple_events() -> None:
         {"ip": "invalid"},
         {"other": "field"},
     ]
-    results = list(maxmind_command.stream(command, iter(events)))
+    results = list(geoip_command.stream(command, iter(events)))
 
     assert results == [EXPECTED_US, {"ip": "invalid"}, {"other": "field"}]
 
 
 def test_default_field() -> None:
     command = MockCommand()
-    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     assert results == [EXPECTED_US]
 
@@ -241,7 +241,7 @@ def test_default_field() -> None:
 def test_custom_field() -> None:
     command = MockCommand(field="src_ip")
     events = iter([{"src_ip": "214.78.120.1"}])
-    results = list(maxmind_command.stream(command, events))
+    results = list(geoip_command.stream(command, events))
 
     expected = {k: v for k, v in EXPECTED_US.items() if k != "ip"}
     expected["src_ip"] = "214.78.120.1"
@@ -250,7 +250,7 @@ def test_custom_field() -> None:
 
 def test_prefix() -> None:
     command = MockCommand(prefix="maxmind_")
-    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     expected: dict[str, object] = {"ip": "214.78.120.1"}
     for key, value in EXPECTED_US.items():
@@ -261,20 +261,20 @@ def test_prefix() -> None:
 
 def test_flatten_record_flat_dict() -> None:
     record = {"a": 1, "b": 2}
-    result = dict(maxmind_command._flatten_record(record))
+    result = dict(geoip_command._flatten_record(record))
 
     assert result == {"a": 1, "b": 2}
 
 
 def test_flatten_record_nested_dict() -> None:
     record = {"country": {"iso_code": "US", "names": {"en": "United States"}}}
-    result = dict(maxmind_command._flatten_record(record))
+    result = dict(geoip_command._flatten_record(record))
 
     assert result == {"country.iso_code": "US", "country.names.en": "United States"}
 
 
 def test_flatten_record_empty_dict() -> None:
-    result = dict(maxmind_command._flatten_record({}))
+    result = dict(geoip_command._flatten_record({}))
 
     assert result == {}
 
@@ -284,7 +284,7 @@ def test_multiple_databases() -> None:
     # 89.160.20.112 is in both Country-Test and City-Test
     # City has additional fields like city.names.en
     command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-City-Test")
-    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "89.160.20.112"}])))
 
     assert len(results) == 1
     result = results[0]
@@ -301,7 +301,7 @@ def test_multiple_databases_smallest_network() -> None:
     # - GeoIP2-ISP-Test with /29 (more specific)
     # Should return /29 (the most specific)
     command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-ISP-Test")
-    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "89.160.20.112"}])))
 
     assert len(results) == 1
     assert results[0]["network"] == "89.160.20.112/29"
@@ -312,7 +312,7 @@ def test_multiple_databases_last_wins() -> None:
     # Use City and Country which both have country.iso_code
     # The second database in the list should win
     command = MockCommand(databases="GeoIP2-City-Test,GeoIP2-Country-Test")
-    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     assert len(results) == 1
     # Both have this field, Country-Test (second) should win
@@ -324,7 +324,7 @@ def test_database_not_found() -> None:
     command = MockCommand(databases="NonExistent-Database")
 
     with pytest.raises(FileNotFoundError, match="Database not found"):
-        list(maxmind_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
 
 
 def test_invalid_database_name() -> None:
@@ -332,14 +332,14 @@ def test_invalid_database_name() -> None:
     command = MockCommand(databases="../etc/passwd")
 
     with pytest.raises(ValueError, match="Invalid database name"):
-        list(maxmind_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
 
 
 def test_ip_in_one_database_only() -> None:
     """Test lookup when IP is only in one of multiple databases."""
     # 214.78.120.1 is in Country but not in Anonymous-IP
     command = MockCommand(databases="GeoIP2-Country-Test,GeoIP2-Anonymous-IP-Test")
-    results = list(maxmind_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
 
     assert len(results) == 1
     result = results[0]
@@ -352,7 +352,7 @@ def test_ip_in_one_database_only() -> None:
 def test_flatten_record_list_of_dicts() -> None:
     """Test that lists of dicts are flattened with numeric indices."""
     record = {"subdivisions": [{"iso_code": "CA", "names": {"en": "California"}}]}
-    result = dict(maxmind_command._flatten_record(record))
+    result = dict(geoip_command._flatten_record(record))
 
     assert result == {
         "subdivisions.0.iso_code": "CA",
@@ -365,7 +365,7 @@ def test_flatten_record_list_of_dicts() -> None:
 def test_flatten_record_multiple_list_items() -> None:
     """Test that multiple list items get sequential indices."""
     record = {"subdivisions": [{"iso_code": "CA"}, {"iso_code": "SF"}]}
-    result = dict(maxmind_command._flatten_record(record))
+    result = dict(geoip_command._flatten_record(record))
 
     assert result == {
         "subdivisions.0.iso_code": "CA",
@@ -377,7 +377,7 @@ def test_flatten_record_multiple_list_items() -> None:
 def test_flatten_record_simple_list() -> None:
     """Test that simple lists are flattened with indices."""
     record = {"tags": ["a", "b", "c"]}
-    result = dict(maxmind_command._flatten_record(record))
+    result = dict(geoip_command._flatten_record(record))
 
     assert result == {"tags.0": "a", "tags.1": "b", "tags.2": "c"}
 
@@ -386,7 +386,7 @@ def test_subdivisions_flattened() -> None:
     """Test that subdivisions from City database are properly flattened."""
     # 89.160.20.112 has subdivisions in GeoIP2-City-Test
     command = MockCommand(databases="GeoIP2-City-Test")
-    results = list(maxmind_command.stream(command, iter([{"ip": "89.160.20.112"}])))
+    results = list(geoip_command.stream(command, iter([{"ip": "89.160.20.112"}])))
 
     assert len(results) == 1
     result = results[0]

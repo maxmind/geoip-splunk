@@ -7,18 +7,18 @@ database](https://www.maxmind.com/en/geoip-databases) lookups. It provides
 IP geolocation and enrichment using MaxMind's GeoIP and GeoLite databases,
 including country, city, anonymous IP detection, ISP, and more.
 
-The add-on provides a streaming search command (`maxmind`) that enriches events
+The add-on provides a streaming search command (`geoip`) that enriches events
 with data from one or more MaxMind databases.
 
-## Search Command: maxmind
+## Search Command: `geoip`
 
-The maxmind command is a streaming search command that enriches events with
+The `geoip` command is a streaming search command that enriches events with
 data from MaxMind databases.
 
 ### Syntax
 
 ```
-| maxmind [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
 ### Arguments
@@ -79,19 +79,19 @@ value from the last database in the list is used.
 Look up country information for the ip field:
 
 ```
-| makeresults | eval ip="8.8.8.8" | maxmind databases=GeoIP2-Country
+| makeresults | eval ip="8.8.8.8" | geoip databases=GeoIP2-Country
 ```
 
 Look up city information using a custom field:
 
 ```
-| ... | maxmind field=client_ip databases=GeoIP2-City
+| ... | geoip field=client_ip databases=GeoIP2-City
 ```
 
 Combine country and anonymous IP detection with a prefix:
 
 ```
-| ... | maxmind prefix=geo_ databases="GeoIP2-Country,GeoIP2-Anonymous-IP"
+| ... | geoip prefix=geo_ databases="GeoIP2-Country,GeoIP2-Anonymous-IP"
 ```
 
 This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.

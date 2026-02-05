@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`maxmind`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
+This is a Splunk Add-on for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`geoip`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
 
-## The maxmind Command
+## The geoip Command
 
 ```
-| maxmind [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
 - `databases` (required): Comma-separated list of database names. **Must be quoted if multiple** (e.g., `databases="GeoIP2-Country,GeoIP2-Anonymous-IP"`)
@@ -29,7 +29,7 @@ End-user documentation is in `package/README.md`.
 
 ### Command Architecture
 
-The command implementation in `maxmind_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+The command implementation in `geoip_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
 - `databases`, `field`, `prefix` - command arguments
 - `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
 - `metadata.searchinfo.app` - the app name
@@ -94,7 +94,7 @@ tests/
 ├── conftest.py              # Sets MAXMIND_DB_DIR to test database directory
 ├── data/                    # MaxMind-DB submodule (git submodule)
 │   └── test-data/           # Contains test .mmdb files
-└── maxmind_command_test.py  # Tests using various test databases
+└── geoip_command_test.py    # Tests using various test databases
 ```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
@@ -199,8 +199,8 @@ author = MaxMind
 
 Custom search command configuration. Unlike `app.conf`, UCC **replaces** (not merges) this file, so you must include all required settings:
 ```ini
-[maxmind]
-filename = maxmind.py
+[geoip]
+filename = geoip.py
 chunked = true
 python.version = python3
 python.required = 3.13
@@ -255,20 +255,20 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 
 UCC generates a wrapper script for custom search commands. The naming works as follows:
 
-- `globalConfig.json` specifies `commandName` (e.g., `"maxmind"`) and `fileName` (e.g., `"maxmind_command.py"`)
-- UCC generates a wrapper named `<commandName>.py` (e.g., `maxmind.py`) that imports from your `fileName`
-- `commands.conf` must reference the **wrapper** name (`filename = maxmind.py`), not the source file
+- `globalConfig.json` specifies `commandName` (e.g., `"geoip"`) and `fileName` (e.g., `"geoip_command.py"`)
+- UCC generates a wrapper named `<commandName>.py` (e.g., `geoip.py`) that imports from your `fileName`
+- `commands.conf` must reference the **wrapper** name (`filename = geoip.py`), not the source file
 
-The generated wrapper (`output/.../bin/maxmind.py`) looks like:
+The generated wrapper (`output/.../bin/geoip.py`) looks like:
 ```python
-from maxmind_command import stream
+from geoip_command import stream
 
-class MaxmindCommand(StreamingCommand):
+class GeoipCommand(StreamingCommand):
     def stream(self, events):
         return stream(self, events)
 ```
 
-So the source file (`maxmind_command.py`) and wrapper (`maxmind.py`) are intentionally different files.
+So the source file (`geoip_command.py`) and wrapper (`geoip.py`) are intentionally different files.
 
 ## Splunk Python Version Configuration
 
