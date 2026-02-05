@@ -19,7 +19,17 @@
         "classification": {
             "intendedAudience": "IT Professionals",
             "categories": [
-                "Security, Fraud & Compliance"
+                "Business Analytics",
+                "Firewall",
+                "Identity Management",
+                "Information",
+                "Investigative",
+                "IT Operations",
+                "Network Security",
+                "Reputation",
+                "Security, Fraud & Compliance",
+                "SIEM",
+                "Threat Intel"
             ],
             "developmentStatus": "Production/Stable"
         },
