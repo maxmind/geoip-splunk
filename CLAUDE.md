@@ -119,8 +119,11 @@ geoip/
 │   │   └── inputs.conf    # Modular input configuration (replaces generated)
 │   ├── bin/               # Python scripts (inputs, custom commands)
 │   │   ├── geoip_command.py       # The geoip search command
+│   │   ├── geoip_handler.py       # Custom REST handler for databases tab
+│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/logging
 │   │   └── geoipupdate_input.py   # Database update modular input
 │   ├── lib/
+│   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
 │   │   ├── requirements.txt  # Python dependencies for the add-on
 │   │   └── geoipupdate/      # Vendored geoipupdate library
 │   └── static/            # Icons and images
@@ -136,6 +139,8 @@ tests/
 ├── data/                        # MaxMind-DB submodule (git submodule)
 │   └── test-data/               # Contains test .mmdb files
 ├── geoip_command_test.py        # Tests using various test databases
+├── geoip_handler_test.py        # Tests for REST handler (databases tab)
+├── geoip_rh_settings_test.py    # Tests for REST handler (account/logging)
 ├── geoip_utils_test.py          # Tests for shared utility functions
 └── geoipupdate_input_test.py    # Tests for database update functionality
 ```
@@ -312,6 +317,58 @@ class GeoipCommand(StreamingCommand):
 ```
 
 So the source file (`geoip_command.py`) and wrapper (`geoip.py`) are intentionally different files.
+
+### Custom REST Handlers
+
+Custom REST handlers allow you to add logic when configuration is saved. We use this to trigger background database updates when users save credentials or add databases.
+
+**How it works:**
+
+UCC generates REST handler files (`geoip_rh_*.py`) that handle API requests for configuration tabs. You can customize these handlers to add pre/post-save logic.
+
+**For multi-instance tables** (like the databases tab), use `restHandlerModule` and `restHandlerClass` in `globalConfig.json`:
+
+```json
+{
+    "name": "databases",
+    "table": {...},
+    "entity": [...],
+    "restHandlerModule": "geoip_handler",
+    "restHandlerClass": "GeoipDatabasesHandler"
+}
+```
+
+UCC generates a wrapper (`geoip_rh_databases.py`) that imports your class from `geoip_handler.py` and uses it as the handler. Your module only needs the handler class - UCC generates the endpoint/field definitions.
+
+**For single-instance forms** (like the account tab), `restHandlerModule`/`restHandlerClass` don't work. You must provide the complete handler file (`geoip_rh_settings.py`) with:
+- Field definitions (duplicated from `globalConfig.json`)
+- Endpoint setup (`MultipleModel`)
+- Custom handler class
+
+This duplication is unavoidable - UCC either generates the entire file OR copies yours; it can't merge them.
+
+**Files involved:**
+
+| File | Purpose |
+|------|---------|
+| `geoip_handler.py` | Shared module with `GeoipDatabasesHandler` class and background update functions |
+| `geoip_rh_settings.py` | Complete custom handler for account/logging settings (field definitions duplicated) |
+| `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler` |
+
+**Handler class pattern:**
+
+```python
+class GeoipDatabasesHandler(AdminExternalHandler):
+    def handleEdit(self, confInfo):
+        AdminExternalHandler.handleEdit(self, confInfo)  # Do the save
+        trigger_background_update(self.getSessionKey())  # Custom logic
+
+    def handleCreate(self, confInfo):
+        AdminExternalHandler.handleCreate(self, confInfo)
+        trigger_background_update(self.getSessionKey())
+```
+
+**Important:** Don't call `util.remove_http_proxy_env_vars()` in custom handlers if you need proxy support for external API calls (like downloading from MaxMind).
 
 ## Splunk Python Version Configuration
 

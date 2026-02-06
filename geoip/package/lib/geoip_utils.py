@@ -17,6 +17,48 @@ except ImportError:
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
 
+# Field specifications for the settings REST handler (geoip_rh_settings.py).
+# That file builds RestField objects from these specs. Tests compare these
+# specs against globalConfig.json to catch drift between the two files.
+SETTINGS_FIELD_SPECS = {
+    "account": [
+        {
+            "field": "account_id",
+            "required": True,
+            "encrypted": True,
+            "default": None,
+            "validators": [
+                {"type": "regex", "pattern": r"^[0-9]+$"},
+                {"type": "string", "min_len": 1, "max_len": 20},
+            ],
+        },
+        {
+            "field": "license_key",
+            "required": True,
+            "encrypted": True,
+            "default": None,
+            "validators": [
+                {"type": "regex", "pattern": r"^[A-Za-z0-9_]+$"},
+                {"type": "string", "min_len": 8, "max_len": 100},
+            ],
+        },
+    ],
+    "logging": [
+        {
+            "field": "loglevel",
+            "required": True,
+            "encrypted": False,
+            "default": "INFO",
+            "validators": [
+                {
+                    "type": "regex",
+                    "pattern": r"^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$",
+                },
+            ],
+        },
+    ],
+}
+
 
 def get_database_directory() -> Path:
     """Get the directory where MaxMind databases are stored.
