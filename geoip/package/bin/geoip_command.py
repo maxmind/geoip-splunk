@@ -54,7 +54,7 @@ def stream(
     missing IP field), the event is yielded unchanged.
 
     Args:
-        command: The MaxmindCommand instance with arguments:
+        command: The Command instance with arguments:
             databases: Comma-separated list of database names to query
                 (e.g., 'GeoIP2-Country,GeoIP2-Anonymous-IP').
             field: The event field containing the IP address to look up
@@ -206,6 +206,8 @@ def _flatten_value(
         for i, item in enumerate(value):
             yield from _flatten_value(item, f"{key}.{i}")
         if value and key == "subdivisions":
+            # MaxMind orders subdivisions largest-to-smallest, so [-1]
+            # is the most specific (e.g., city-level) subdivision.
             yield from _flatten_value(value[-1], f"{key}.-1")
     else:
         yield key, value
