@@ -96,6 +96,10 @@ def get_database_directory() -> Path:
 def get_logger(session_key: str) -> logging.Logger:
     """Get a logger configured with the app's log level setting.
 
+    The session key is required to read the user's configured log level
+    from Splunk's REST API. Without it, the log level would be hardcoded
+    and the Logging tab in the UI would have no effect.
+
     The result is cached to avoid repeated REST API calls. Only one logger
     is cached; concurrent searches with different session keys will evict
     each other's cached loggers, but this is acceptable since the log level
