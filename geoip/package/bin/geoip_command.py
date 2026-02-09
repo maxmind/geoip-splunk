@@ -1,25 +1,16 @@
 """MaxMind database lookup streaming command for Splunk."""
 
-import logging
 import os
 import re
 import sys
 from collections.abc import Iterator
 from ipaddress import ip_network
-from pathlib import Path
 from typing import Any, Protocol
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
-
-try:
-    from solnlib import conf_manager
-    from solnlib import log as solnlib_log
-
-    _HAS_SOLNLIB = True
-except ImportError:
-    _HAS_SOLNLIB = False
+from geoip_utils import get_database_directory, get_logger
 
 
 class SearchInfo(Protocol):
@@ -44,50 +35,7 @@ class Command(Protocol):
     metadata: Metadata
 
 
-# Cache of open database readers, keyed by database name
-_readers: dict[str, maxminddb.Reader] = {}
-
-# Valid database name pattern (alphanumeric and hyphens only)
-_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9-]+$")
-
-# Directory containing MaxMind databases
-# TODO: We need to be able to re-open databases when there are updates.
-# TODO: We need to be able to download databases rather than assume they are
-# available in the add-on directly.
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_db_dir = os.environ.get(
-    "MAXMIND_DB_DIR",
-    os.path.join(_script_dir, "..", "data"),
-)
-
-
-def _get_reader(name: str) -> maxminddb.Reader:
-    """Get a database reader, opening it if not already cached.
-
-    Args:
-        name: The database name (e.g., 'GeoIP2-Country')
-
-    Returns:
-        The maxminddb.Reader for the database
-
-    Raises:
-        ValueError: If the database name contains invalid characters
-        FileNotFoundError: If the database file doesn't exist
-
-    """
-    if not _VALID_DB_NAME.match(name):
-        msg = f"Invalid database name: {name}"
-        raise ValueError(msg)
-    if name not in _readers:
-        db_path = Path(_db_dir, f"{name}.mmdb")
-        if not db_path.exists():
-            msg = f"Database not found: {db_path}"
-            raise FileNotFoundError(msg)
-        _readers[name] = maxminddb.open_database(str(db_path))
-    return _readers[name]
-
-
-def stream(  # noqa: C901
+def stream(
     command: Command,
     events: Iterator[dict[str, Any]],
 ) -> Iterator[dict[str, Any]]:
@@ -105,7 +53,7 @@ def stream(  # noqa: C901
     missing IP field), the event is yielded unchanged.
 
     Args:
-        command: The MaxmindCommand instance with arguments:
+        command: The Command instance with arguments:
             databases: Comma-separated list of database names to query
                 (e.g., 'GeoIP2-Country,GeoIP2-Anonymous-IP').
             field: The event field containing the IP address to look up
@@ -122,15 +70,13 @@ def stream(  # noqa: C901
     readers = [_get_reader(name) for name in database_names]
     field = command.field
     prefix = command.prefix
-    logger: logging.Logger | None = None
+    session_key = command.metadata.searchinfo.session_key
 
     for event in events:
         ip_address = event.get(field)
 
         if not ip_address:
-            if logger is None:
-                logger = _get_logger(command.metadata.searchinfo.session_key)
-            logger.debug("Event missing or empty field: %s", field)
+            get_logger(session_key).debug("Event missing or empty field: %s", field)
             yield event
             continue
 
@@ -141,15 +87,11 @@ def stream(  # noqa: C901
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug("Invalid IP address: %s", ip_address)
+                get_logger(session_key).debug("Invalid IP address: %s", ip_address)
                 continue
 
             if not record:
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug(
+                get_logger(session_key).debug(
                     "No record found for IP %s in database %s",
                     ip_address,
                     reader.metadata().database_type,
@@ -157,9 +99,7 @@ def stream(  # noqa: C901
                 continue
 
             if not isinstance(record, dict):
-                if logger is None:
-                    logger = _get_logger(command.metadata.searchinfo.session_key)
-                logger.debug(
+                get_logger(session_key).debug(
                     "Record for IP %s is not a dict: %s",
                     ip_address,
                     type(record).__name__,
@@ -183,26 +123,47 @@ def stream(  # noqa: C901
         yield event
 
 
-_APP_NAME = "geoip"
-_CONF_NAME = f"{_APP_NAME}_settings"
+# Cache of open database readers, keyed by database name.
+#
+# No mtime-based invalidation needed: Splunk spawns a fresh Python process
+# for each search, so this cache starts empty and databases are always
+# freshly opened. If the updater writes a new database file between
+# searches, the next search automatically loads the updated version.
+#
+# The cache is still useful within a single search to avoid reopening
+# the database for each batch of events (chunked streaming commands
+# receive multiple batches in the same process).
+_readers: dict[str, maxminddb.Reader] = {}
+
+# Valid database name pattern (alphanumeric, underscores, and hyphens only)
+_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _get_logger(session_key: str) -> logging.Logger:
-    """Get a logger configured with the app's log level setting."""
-    if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(_APP_NAME)
-        fallback.setLevel(logging.INFO)
-        return fallback
+def _get_reader(name: str) -> maxminddb.Reader:
+    """Get a database reader, opening it if not already cached.
 
-    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
-    log_level = conf_manager.get_log_level(
-        logger=logger,
-        session_key=session_key,
-        app_name=_APP_NAME,
-        conf_name=_CONF_NAME,
-    )
-    logger.setLevel(log_level)
-    return logger
+    Args:
+        name: The database name (e.g., 'GeoIP2-Country')
+
+    Returns:
+        The maxminddb.Reader for the database
+
+    Raises:
+        ValueError: If the database name contains invalid characters
+        FileNotFoundError: If the database file doesn't exist
+
+    """
+    if not _VALID_DB_NAME.match(name):
+        msg = f"Invalid database name: {name}"
+        raise ValueError(msg)
+    if name not in _readers:
+        db_dir = get_database_directory()
+        db_path = db_dir / f"{name}.mmdb"
+        if not db_path.exists():
+            msg = f"Database not found: {db_path}"
+            raise FileNotFoundError(msg)
+        _readers[name] = maxminddb.open_database(str(db_path))
+    return _readers[name]
 
 
 def _flatten_record(record: dict[str, Any]) -> Iterator[tuple[str, Any]]:
@@ -244,6 +205,8 @@ def _flatten_value(
         for i, item in enumerate(value):
             yield from _flatten_value(item, f"{key}.{i}")
         if value and key == "subdivisions":
+            # MaxMind orders subdivisions largest-to-smallest, so [-1]
+            # is the most specific (e.g., city-level) subdivision.
             yield from _flatten_value(value[-1], f"{key}.-1")
     else:
         yield key, value

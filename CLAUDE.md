@@ -25,7 +25,7 @@ Behavior:
 - Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
 - Events with missing, empty, invalid, or not-found IPs pass through unchanged
 
-End-user documentation is in `package/README.md`.
+End-user documentation is in `README.md` (copied into the package by `additional_packaging.py`).
 
 ### Command Architecture
 
@@ -36,8 +36,46 @@ The command implementation in `geoip_command.py` exposes a `stream(command, even
 
 Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
-- If a database file is updated on disk, the old data continues to be served until the process restarts
-- The TODOs in the code note that database reloading needs to be implemented
+- Splunk spawns a fresh Python process for each search, so the cache starts empty
+- If the updater writes a new database file between searches, the next search automatically loads it
+
+## Database Storage and Updates
+
+### Storage Location
+
+Databases are stored at `$SPLUNK_HOME/etc/apps/geoip/local/data/`:
+- The `/local/` directory is preserved across add-on upgrades
+- Apps can write to their own `/local/` directory in both Enterprise and Cloud
+- The `/data/` subdirectory keeps databases separate from .conf files
+
+For testing, set the `MAXMIND_DB_DIR` environment variable to override the database directory.
+
+### Automatic Updates
+
+The `geoipupdate_input` modular input downloads and updates databases automatically:
+- A default input (`geoipupdate_input://default`) is enabled out of the box (no UI, runs in background)
+- Users configure their MaxMind credentials and add databases to download
+- Updates only run when credentials AND at least one database are configured
+- Uses the vendored `geoipupdate` library in `package/lib/geoipupdate/`
+- Default update interval is 3600 seconds (1 hour)
+- `run_only_one = false` in `inputs.conf` ensures each node in a Search Head Cluster downloads its own databases
+
+The input gracefully handles incomplete configuration - it logs a warning and skips the update until both credentials and databases are configured.
+
+#### Modular Input Registration
+
+Splunk discovers modular input types by reading `README/inputs.conf.spec`. Two requirements:
+
+1. **The spec must have at least one custom parameter** (even a dummy `param1 =`) or Splunk's `SpecFiles` silently ignores the input type entirely.
+2. **`use_single_instance` must be `False`** in the scheme for interval-based scheduling to work. With `True`, Splunk runs the script once at startup but does not re-run it on the configured interval.
+
+### geoipupdate Library
+
+The add-on includes a vendored copy of the geoipupdate Python library at `package/lib/geoipupdate/`. This async library handles:
+- MaxMind API authentication
+- Database download with retry logic
+- Atomic file writes with hash verification
+- File locking to prevent concurrent updates
 
 ## Build Commands
 
@@ -71,18 +109,26 @@ splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
 
 ```
 geoip/
-├── globalConfig.json      # Main configuration file for UCC framework
+├── globalConfig.json         # Main configuration file for UCC framework
+├── additional_packaging.py   # UCC post-build hook (copies licenses/README)
 ├── package/
-│   ├── app.manifest       # Add-on metadata (author, version, description)
-│   ├── README.md          # End-user documentation (included in package)
+│   ├── app.manifest          # Add-on metadata (author, version, description)
+│   ├── README.md             # End-user documentation (included in package)
+│   ├── LICENSES/             # License files included in package
 │   ├── default/
-│   │   ├── app.conf       # Splunk app configuration (merged with generated)
-│   │   └── commands.conf  # Search command configuration (replaces generated)
-│   ├── bin/               # Python scripts (inputs, custom commands)
+│   │   ├── app.conf          # Splunk app configuration (merged with generated)
+│   │   ├── commands.conf     # Search command configuration (replaces generated)
+│   │   └── inputs.conf       # Modular input configuration (replaces generated)
+│   ├── bin/                  # Python scripts (inputs, custom commands)
+│   │   ├── geoip_command.py       # The geoip search command
+│   │   ├── geoip_handler.py       # Custom REST handler for databases tab
+│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/logging
+│   │   └── geoipupdate_input.py   # Database update modular input
 │   ├── lib/
-│   │   └── requirements.txt  # Python dependencies for the add-on
-│   ├── static/            # Icons and images
-│   └── data/              # Data files (e.g., MaxMind databases)
+│   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
+│   │   ├── requirements.txt  # Python dependencies for the add-on
+│   │   └── geoipupdate/      # Vendored geoipupdate library
+│   └── static/               # Icons and images
 ```
 
 ## Tests
@@ -91,10 +137,14 @@ Tests live in `tests/` and use pytest. Test data comes from the `MaxMind-DB` git
 
 ```
 tests/
-├── conftest.py              # Sets MAXMIND_DB_DIR to test database directory
-├── data/                    # MaxMind-DB submodule (git submodule)
-│   └── test-data/           # Contains test .mmdb files
-└── geoip_command_test.py    # Tests using various test databases
+├── conftest.py                  # Sets MAXMIND_DB_DIR to test database directory
+├── data/                        # MaxMind-DB submodule (git submodule)
+│   └── test-data/               # Contains test .mmdb files
+├── geoip_command_test.py        # Tests using various test databases
+├── geoip_handler_test.py        # Tests for REST handler (databases tab)
+├── geoip_rh_settings_test.py    # Tests for REST handler (account/logging)
+├── geoip_utils_test.py          # Tests for shared utility functions
+└── geoipupdate_input_test.py    # Tests for database update functionality
 ```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
@@ -127,7 +177,7 @@ This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment r
 ### globalConfig.json
 
 The main UCC configuration file. Defines:
-- Configuration tabs (accounts, logging)
+- Configuration tabs (accounts, databases, logging)
 - Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
 
@@ -216,7 +266,7 @@ There are three places where dependencies are managed:
 
 - **Dev tools**: `mise.toml` - Python, uv, precious (managed by mise)
 - **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
-- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb (installed into add-on's lib/ at build time)
+- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, aiohttp, filelock, tenacity (installed into add-on's lib/ at build time)
 
 ### Updating Dependencies
 
@@ -250,6 +300,7 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 - UCC automatically sets `python.version = python3` in generated `commands.conf` and `inputs.conf`
 - Warning about "not auto generated by UCC framework" for custom settings is expected
 - `ucc-gen init` creates a `README.md` in the addon source directory, but it's not needed and doesn't get included in the output package. Use `package/README.md` for end-user documentation instead.
+- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`.
 
 ### Custom Search Command File Naming
 
@@ -270,6 +321,58 @@ class GeoipCommand(StreamingCommand):
 
 So the source file (`geoip_command.py`) and wrapper (`geoip.py`) are intentionally different files.
 
+### Custom REST Handlers
+
+Custom REST handlers allow you to add logic when configuration is saved. We use this to trigger background database updates when users save credentials or add databases.
+
+**How it works:**
+
+UCC generates REST handler files (`geoip_rh_*.py`) that handle API requests for configuration tabs. You can customize these handlers to add pre/post-save logic.
+
+**For multi-instance tables** (like the databases tab), use `restHandlerModule` and `restHandlerClass` in `globalConfig.json`:
+
+```json
+{
+    "name": "databases",
+    "table": {...},
+    "entity": [...],
+    "restHandlerModule": "geoip_handler",
+    "restHandlerClass": "GeoipDatabasesHandler"
+}
+```
+
+UCC generates a wrapper (`geoip_rh_databases.py`) that imports your class from `geoip_handler.py` and uses it as the handler. Your module only needs the handler class - UCC generates the endpoint/field definitions.
+
+**For single-instance forms** (like the account tab), `restHandlerModule`/`restHandlerClass` don't work. You must provide the complete handler file (`geoip_rh_settings.py`) with:
+- Field definitions (duplicated from `globalConfig.json`)
+- Endpoint setup (`MultipleModel`)
+- Custom handler class
+
+This duplication is unavoidable - UCC either generates the entire file OR copies yours; it can't merge them.
+
+**Files involved:**
+
+| File | Purpose |
+|------|---------|
+| `geoip_handler.py` | Shared module with `GeoipDatabasesHandler` class and background update functions |
+| `geoip_rh_settings.py` | Complete custom handler for account/logging settings (field definitions duplicated) |
+| `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler` |
+
+**Handler class pattern:**
+
+```python
+class GeoipDatabasesHandler(AdminExternalHandler):
+    def handleEdit(self, confInfo):
+        AdminExternalHandler.handleEdit(self, confInfo)  # Do the save
+        trigger_background_update(self.getSessionKey())  # Custom logic
+
+    def handleCreate(self, confInfo):
+        AdminExternalHandler.handleCreate(self, confInfo)
+        trigger_background_update(self.getSessionKey())
+```
+
+**Important:** Don't call `util.remove_http_proxy_env_vars()` in custom handlers if you need proxy support for external API calls (like downloading from MaxMind).
+
 ## Splunk Python Version Configuration
 
 In Splunk 10.2+, `python.version` is deprecated. Use `python.required` instead:
@@ -287,34 +390,26 @@ splunk restart
 splunk install app /path/to/geoip-1.0.0.tar.gz
 ```
 
-## Logging in Custom Search Commands
+## Logging
 
 Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`. The log level is configured via the Logging tab in the add-on's UI.
 
-### Setup Pattern
+The shared `get_logger(session_key)` function in `geoip_utils.py` is used by all modules (search command, modular input, REST handlers). It's decorated with `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level setting.
 
 ```python
-# At module level - import solnlib if available
-try:
-    from solnlib import conf_manager
-    from solnlib import log as solnlib_log
-    _HAS_SOLNLIB = True
-except ImportError:
-    _HAS_SOLNLIB = False
-
-# Logger creation function (called lazily when needed)
-def _get_logger(session_key: str) -> logging.Logger:
+@lru_cache(maxsize=1)
+def get_logger(session_key: str) -> logging.Logger:
     if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(_APP_NAME)
+        fallback = logging.getLogger(APP_NAME)
         fallback.setLevel(logging.INFO)
         return fallback
 
-    logger: logging.Logger = solnlib_log.Logs().get_logger(_APP_NAME)
+    logger: logging.Logger = solnlib_log.Logs().get_logger(APP_NAME)
     log_level = conf_manager.get_log_level(
         logger=logger,
         session_key=session_key,
-        app_name=_APP_NAME,
-        conf_name=f"{_APP_NAME}_settings",
+        app_name=APP_NAME,
+        conf_name=CONF_NAME,
     )
     logger.setLevel(log_level)
     return logger
@@ -324,7 +419,7 @@ def _get_logger(session_key: str) -> logging.Logger:
 
 - **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
 - **Session key**: Required to read log level from settings. Available via `command.metadata.searchinfo.session_key` in streaming commands
-- **Lazy initialization**: Create the logger only when needed (e.g., inside exception handlers) to avoid overhead when no logging occurs
+- **Caching**: The logger is cached with `lru_cache` so only the first call per process makes a REST API call. Only one entry is cached; concurrent searches with different session keys evict each other, which is fine since the log level is global
 - **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
 - **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
 

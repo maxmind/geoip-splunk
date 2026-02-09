@@ -10,6 +10,49 @@ including country, city, anonymous IP detection, ISP, and more.
 The add-on provides a streaming search command (`geoip`) that enriches events
 with data from one or more MaxMind databases.
 
+## Quick Start
+
+1. Install the add-on and restart Splunk
+2. Go to **Apps > GeoIP for Splunk > Configuration**
+3. Enter your MaxMind **Account ID** and **License Key**
+4. Go to **Configuration > Databases** and add the databases you want
+5. Click **Save**
+
+Database updates run automatically every hour. Once you've completed the
+steps above, your databases will be downloaded within a few minutes.
+
+You can find your Account ID and generate license keys in your
+[MaxMind account portal](https://www.maxmind.com/en/account).
+
+## Configuration
+
+### Databases
+
+Add the databases you want to download:
+
+1. Go to **Configuration > Databases**
+2. Click **Add** and enter the database name
+
+Common databases:
+
+| Database | Description |
+|----------|-------------|
+| `GeoLite2-City` | Free city-level geolocation |
+| `GeoLite2-Country` | Free country-level geolocation |
+| `GeoLite2-ASN` | Free ASN lookup |
+| `GeoIP2-City` | Paid city-level geolocation (more accurate) |
+| `GeoIP2-Country` | Paid country-level geolocation |
+| `GeoIP2-Anonymous-IP` | VPN, proxy, and Tor detection |
+| `GeoIP2-ISP` | ISP and organization lookup |
+
+### Database Updates
+
+Databases are checked for updates every hour and stored in the add-on's
+`local/data/` directory. They are preserved across upgrades.
+
+In Search Head Cluster environments, each member downloads its own databases
+independently.
+
 ## Search Command: `geoip`
 
 The `geoip` command is a streaming search command that enriches events with
@@ -105,9 +148,8 @@ This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.
 
 ### Supported Databases
 
-All MaxMind databases are supported.
-
-Database files must be placed in the add-on's data directory.
+All MaxMind databases are supported. Make sure the database name in your
+search matches the name configured in the Databases tab.
 
 ## Incompatibility Notice
 

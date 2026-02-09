@@ -80,7 +80,9 @@
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "restHandlerModule": "geoip_handler",
+                    "restHandlerClass": "GeoipDatabasesHandler"
                 },
                 {
                     "type": "loggingTab"
@@ -99,6 +101,9 @@
         "supportedThemes": [
             "light",
             "dark"
+        ],
+        "supportedPythonVersion": [
+            "3.13"
         ]
     },
     "customSearchCommand": [

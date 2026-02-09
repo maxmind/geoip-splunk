@@ -2,3 +2,6 @@ splunktaucclib==8.0.0
 splunk-sdk==2.1.1
 solnlib==7.0.0
 maxminddb==3.0.0
+aiohttp>=3.8.0,<4.0.0
+filelock>=3.12.0,<4.0.0
+tenacity>=8.2.0,<10.0.0

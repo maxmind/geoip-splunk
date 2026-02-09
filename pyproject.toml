@@ -11,8 +11,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "aiohttp>=3.8.0,<4.0.0",
+    "filelock>=3.12.0,<4.0.0",
     "maxminddb>=3.0.0",
     "pytest>=9.0.2",
+    "pytest-httpserver>=1.0.10",
+    "tenacity>=8.2.0,<10.0.0",
 ]
 lint = [
     "mypy>=1.19.1",
@@ -40,12 +44,6 @@ ignore = [
     "PTH118",
     # PTH120: os.path.dirname - pathlib not always better for simple cases
     "PTH120",
-    # TD002: Missing author in TODO - not needed for this project
-    "TD002",
-    # TD003: Missing issue link in TODO - not needed for this project
-    "TD003",
-    # FIX002: Line contains TODO - TODOs are allowed
-    "FIX002",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -59,10 +57,53 @@ ignore = [
     # SLF001: Private member access - needed to test private functions
     "SLF001",
 ]
+"geoip/package/bin/geoip_handler.py" = [
+    # BLE001: Blind exception catch is intentional - background thread safety net
+    "BLE001",
+    # N802, N803: camelCase method/arg names required by Splunk AdminExternalHandler API
+    "N802",
+    "N803",
+    # PLC0415: Local imports are intentional to defer loading and avoid circular imports
+    "PLC0415",
+]
+"geoip/package/bin/geoip_rh_settings.py" = [
+    # F401: import_declare_test is required by UCC even though unused
+    "F401",
+    # N802, N803: camelCase method/arg names required by Splunk AdminExternalHandler API
+    "N802",
+    "N803",
+]
 
 [tool.mypy]
 strict = true
+mypy_path = "geoip/package/bin:geoip/package/lib"
 
 [[tool.mypy.overrides]]
 module = ["solnlib", "solnlib.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["splunktaucclib", "splunktaucclib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["geoipupdate", "geoipupdate.*"]
+ignore_missing_imports = true
+# geoipupdate is vendored; check types but suppress errors in vendored code
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = ["geoipupdate_input", "geoip_utils"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["geoip_handler"]
+ignore_missing_imports = true
+# Subclassing AdminExternalHandler (which has type "Any") causes misc errors
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["geoip_rh_settings", "import_declare_test"]
+ignore_missing_imports = true
+# Subclassing AdminExternalHandler (which has type "Any") causes misc errors
+disable_error_code = ["misc"]
