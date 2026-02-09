@@ -15,7 +15,12 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-from geoip_utils import APP_NAME, get_database_directory, get_logger
+from geoip_utils import (
+    APP_NAME,
+    get_database_directory,
+    get_fallback_logger,
+    get_logger,
+)
 from geoipupdate import Config, Updater
 from geoipupdate.errors import GeoIPUpdateError
 from solnlib import conf_manager
@@ -61,6 +66,7 @@ class GeoIPUpdateInput:
         # inputs has a metadata attribute from Splunk's InputDefinition
         session_key = inputs.metadata.get("session_key", "")  # type: ignore[attr-defined]
         if not session_key:
+            get_fallback_logger().error("No session key provided by Splunk")
             return
 
         run_database_update(session_key)

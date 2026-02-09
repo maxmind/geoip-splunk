@@ -92,6 +92,17 @@ def get_database_directory() -> Path:
     return Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
 
 
+def get_fallback_logger() -> logging.Logger:
+    """Get a basic logger for use when no session key is available.
+
+    The log level is hardcoded to INFO since without a session key we
+    cannot read the user's configured level from Splunk's REST API.
+    """
+    logger = logging.getLogger(APP_NAME)
+    logger.setLevel(logging.INFO)
+    return logger
+
+
 @lru_cache(maxsize=1)
 def get_logger(session_key: str) -> logging.Logger:
     """Get a logger configured with the app's log level setting.
@@ -106,9 +117,7 @@ def get_logger(session_key: str) -> logging.Logger:
     setting is global anyway.
     """
     if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(APP_NAME)
-        fallback.setLevel(logging.INFO)
-        return fallback
+        return get_fallback_logger()
 
     logger: logging.Logger = solnlib_log.Logs().get_logger(APP_NAME)
     log_level = conf_manager.get_log_level(
