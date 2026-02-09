@@ -5,7 +5,6 @@ import re
 import sys
 from collections.abc import Iterator
 from ipaddress import ip_network
-from pathlib import Path
 from typing import Any, Protocol
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
@@ -159,7 +158,7 @@ def _get_reader(name: str) -> maxminddb.Reader:
         raise ValueError(msg)
     if name not in _readers:
         db_dir = get_database_directory()
-        db_path = Path(db_dir, f"{name}.mmdb")
+        db_path = db_dir / f"{name}.mmdb"
         if not db_path.exists():
             msg = f"Database not found: {db_path}"
             raise FileNotFoundError(msg)
