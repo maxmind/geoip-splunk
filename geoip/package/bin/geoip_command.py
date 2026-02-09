@@ -135,8 +135,8 @@ def stream(
 # receive multiple batches in the same process).
 _readers: dict[str, maxminddb.Reader] = {}
 
-# Valid database name pattern (alphanumeric and hyphens only)
-_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9-]+$")
+# Valid database name pattern (alphanumeric, underscores, and hyphens only)
+_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _get_reader(name: str) -> maxminddb.Reader:
