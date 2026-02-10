@@ -184,6 +184,6 @@ This add-on uses [Semantic Versioning](https://semver.org/).
 
 Copyright (c) 2026 MaxMind, Inc.
 
-This add-on is available as open source under the terms of the
-[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0) or
-the [MIT License](https://opensource.org/licenses/MIT), at your option.
+This add-on is available as open source under the terms of the [Apache
+License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT), at
+your option.
