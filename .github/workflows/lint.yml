@@ -17,6 +17,9 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
 
+      - name: Install Python
+        run: uv python install --python-preference only-managed 3.13
+
       - name: Install dependencies
         run: uv sync --group lint
 

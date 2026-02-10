@@ -81,7 +81,7 @@ The add-on includes a vendored copy of the geoipupdate Python library at `packag
 
 ```bash
 # Setup environment
-mise install                      # Install Python, uv, precious
+mise install                      # Install uv, precious
 uv sync                           # Install build dependencies
 git submodule update --init       # Initialize test data submodule
 
@@ -272,7 +272,7 @@ python.required = 3.13
 
 There are three places where dependencies are managed:
 
-- **Dev tools**: `mise.toml` - Python, uv, precious (managed by mise)
+- **Dev tools**: `mise.toml` - uv, precious (managed by mise); Python is managed by uv
 - **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
 - **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, aiohttp, filelock, tenacity (installed into add-on's lib/ at build time)
 

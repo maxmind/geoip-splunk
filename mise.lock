@@ -15,7 +15,3 @@ backend = "github:houseabsolute/precious"
 "platforms.macos-arm64" = { checksum = "sha256:04157c64459bb6ab029295b21b112077040ad2575b34508d84b19a839551cddb", url = "https://github.com/houseabsolute/precious/releases/download/v0.10.2/precious-macOS-arm64.tar.gz", url_api = "https://api.github.com/repos/houseabsolute/precious/releases/assets/345519985"}
 "platforms.macos-x64" = { checksum = "sha256:9932defd246d0771530357463bdb55582557fd7381853cb4dc2074e36ad0cc84", url = "https://github.com/houseabsolute/precious/releases/download/v0.10.2/precious-macOS-x86_64.tar.gz", url_api = "https://api.github.com/repos/houseabsolute/precious/releases/assets/345519772"}
 "platforms.windows-x64" = { checksum = "sha256:9d683d1730e302c646ccb90a23d313e7a548c8b23b5abf7d24e19ff6befe763d", url = "https://github.com/houseabsolute/precious/releases/download/v0.10.2/precious-Windows-msvc-x86_64.zip", url_api = "https://api.github.com/repos/houseabsolute/precious/releases/assets/345520544"}
-
-[[tools.python]]
-version = "3.13.11"
-backend = "core:python"
