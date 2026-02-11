@@ -81,7 +81,7 @@ The add-on includes a vendored copy of the geoipupdate Python library at `packag
 
 ```bash
 # Setup environment
-mise install                      # Install Python 3.13
+mise install                      # Install uv, precious
 uv sync                           # Install build dependencies
 git submodule update --init       # Initialize test data submodule
 
@@ -108,6 +108,14 @@ splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
 ## Project Structure
 
 ```
+CHANGELOG.md                  # Release history
+.github/
+├── dependabot.yml            # Automated dependency updates
+└── workflows/
+    ├── codeql-analysis.yml   # CodeQL security scanning
+    ├── lint.yml              # Formatting, linting, and AppInspect
+    ├── test.yml              # pytest on Ubuntu
+    └── zizmor.yml            # GitHub Actions security audit
 geoip/
 ├── globalConfig.json         # Main configuration file for UCC framework
 ├── additional_packaging.py   # UCC post-build hook (copies licenses/README)
@@ -264,7 +272,7 @@ python.required = 3.13
 
 There are three places where dependencies are managed:
 
-- **Dev tools**: `mise.toml` - Python, uv, precious (managed by mise)
+- **Dev tools**: `mise.toml` - uv, precious (managed by mise); Python is managed by uv
 - **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
 - **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, aiohttp, filelock, tenacity (installed into add-on's lib/ at build time)
 
@@ -274,7 +282,7 @@ To update all dependencies:
 
 ```bash
 # Check for latest versions of mise tools
-mise latest uv
+mise latest aqua:astral-sh/uv
 mise latest github:houseabsolute/precious
 
 # After updating mise.toml, regenerate the lock file
@@ -422,6 +430,17 @@ def get_logger(session_key: str) -> logging.Logger:
 - **Caching**: The logger is cached with `lru_cache` so only the first call per process makes a REST API call. Only one entry is cached; concurrent searches with different session keys evict each other, which is fine since the log level is global
 - **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
 - **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
+
+## CI
+
+GitHub Actions workflows run on push and pull request:
+
+- **test.yml**: Runs `uv run pytest tests` on Ubuntu
+- **lint.yml**: Runs `precious tidy --check -a`, `precious lint -a`, builds the package, and runs AppInspect
+- **codeql-analysis.yml**: CodeQL security scanning (also weekly)
+- **zizmor.yml**: Audits workflow files for security issues
+
+Dependabot is configured to update uv dependencies and GitHub Actions versions daily.
 
 ## Key Constraints
 
