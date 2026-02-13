@@ -38,7 +38,7 @@ class GeoipDatabasesHandler(AdminExternalHandler):
 def trigger_background_update(session_key: str) -> None:
     """Spawn a background thread to update databases.
 
-    Concurrent updates are safe because the vendored geoipupdate library
+    Concurrent updates are safe because the pygeoipupdate library
     acquires a file lock before writing databases.
     """
     get_logger(session_key).info("Triggering background database update")

@@ -56,7 +56,7 @@ The `geoipupdate_input` modular input downloads and updates databases automatica
 - A default input (`geoipupdate_input://default`) is enabled out of the box (no UI, runs in background)
 - Users configure their MaxMind credentials and add databases to download
 - Updates only run when credentials AND at least one database are configured
-- Uses the vendored `geoipupdate` library in `package/lib/geoipupdate/`
+- Uses the `pygeoipupdate` PyPI package
 - Default update interval is 3600 seconds (1 hour)
 - `run_only_one = false` in `inputs.conf` ensures each node in a Search Head Cluster downloads its own databases
 
@@ -69,9 +69,9 @@ Splunk discovers modular input types by reading `README/inputs.conf.spec`. Two r
 1. **The spec must have at least one custom parameter** (even a dummy `param1 =`) or Splunk's `SpecFiles` silently ignores the input type entirely.
 2. **`use_single_instance` must be `False`** in the scheme for interval-based scheduling to work. With `True`, Splunk runs the script once at startup but does not re-run it on the configured interval.
 
-### geoipupdate Library
+### pygeoipupdate Library
 
-The add-on includes a vendored copy of the geoipupdate Python library at `package/lib/geoipupdate/`. This async library handles:
+The add-on depends on the `pygeoipupdate` PyPI package (listed in `package/lib/requirements.txt`). This async library handles:
 - MaxMind API authentication
 - Database download with retry logic
 - Atomic file writes with hash verification
@@ -134,8 +134,7 @@ geoip/
 │   │   └── geoipupdate_input.py   # Database update modular input
 │   ├── lib/
 │   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
-│   │   ├── requirements.txt  # Python dependencies for the add-on
-│   │   └── geoipupdate/      # Vendored geoipupdate library
+│   │   └── requirements.txt  # Python dependencies for the add-on
 │   └── static/               # Icons and images
 ```
 
@@ -274,7 +273,7 @@ There are three places where dependencies are managed:
 
 - **Dev tools**: `mise.toml` - uv, precious (managed by mise); Python is managed by uv
 - **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
-- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, aiohttp, filelock, tenacity (installed into add-on's lib/ at build time)
+- **Add-on runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, pygeoipupdate (installed into add-on's lib/ at build time)
 
 ### Updating Dependencies
 

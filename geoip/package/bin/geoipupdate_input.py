@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     import logging
     from pathlib import Path
 
-    from geoipupdate.models import UpdateResult
+    from pygeoipupdate.models import UpdateResult
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
@@ -21,8 +21,8 @@ from geoip_utils import (
     get_fallback_logger,
     get_logger,
 )
-from geoipupdate import Config, Updater
-from geoipupdate.errors import GeoIPUpdateError
+from pygeoipupdate import Config, Updater
+from pygeoipupdate.errors import GeoIPUpdateError
 from solnlib import conf_manager
 from solnlib.soln_exceptions import ConfManagerException, ConfStanzaNotExistException
 
@@ -213,7 +213,7 @@ def _run_update(
     config = Config(
         account_id=account_id,
         license_key=license_key,
-        edition_ids=edition_ids,
+        edition_ids=tuple(edition_ids),
         database_directory=database_directory,
     )
 

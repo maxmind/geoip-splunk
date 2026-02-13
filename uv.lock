@@ -372,12 +372,10 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aiohttp" },
-    { name = "filelock" },
     { name = "maxminddb" },
+    { name = "pygeoipupdate" },
     { name = "pytest" },
     { name = "pytest-httpserver" },
-    { name = "tenacity" },
 ]
 lint = [
     { name = "mypy" },
@@ -393,12 +391,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aiohttp", specifier = ">=3.8.0,<4.0.0" },
-    { name = "filelock", specifier = ">=3.12.0,<4.0.0" },
     { name = "maxminddb", specifier = ">=3.0.0" },
+    { name = "pygeoipupdate", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-httpserver", specifier = ">=1.0.10" },
-    { name = "tenacity", specifier = ">=8.2.0,<10.0.0" },
 ]
 lint = [
     { name = "mypy", specifier = ">=1.19.1" },
@@ -594,6 +590,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/48/f0/615c30622316496d2cbbc29f5985f7777d3ada70f23370608c1d3e081c1f/propcache-0.4.1-cp313-cp313t-win_amd64.whl", hash = "sha256:f7ee0e597f495cf415bcbd3da3caa3bd7e816b74d0d52b8145954c5e6fd3ff37", size = 44897, upload-time = "2025-10-08T19:47:48.336Z" },
     { url = "https://files.pythonhosted.org/packages/fd/ca/6002e46eccbe0e33dcd4069ef32f7f1c9e243736e07adca37ae8c4830ec3/propcache-0.4.1-cp313-cp313t-win_arm64.whl", hash = "sha256:929d7cbe1f01bb7baffb33dc14eb5691c95831450a26354cd210a8155170c93a", size = 39789, upload-time = "2025-10-08T19:47:49.876Z" },
     { url = "https://files.pythonhosted.org/packages/5b/5a/bc7b4a4ef808fa59a816c17b20c4bef6884daebbdf627ff2a161da67da19/propcache-0.4.1-py3-none-any.whl", hash = "sha256:af2a6052aeb6cf17d3e46ee169099044fd8224cbaf75c76a2ef596e8163e2237", size = 13305, upload-time = "2025-10-08T19:49:00.792Z" },
+]
+
+[[package]]
+name = "pygeoipupdate"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "click" },
+    { name = "filelock" },
+    { name = "tenacity" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d9/74/d568aaeb84201fb999e0f8052ddcd7ba150f672c18730a14f2dd47f005b6/pygeoipupdate-0.1.0.tar.gz", hash = "sha256:ae84f14bff52d9d341874abdcc1752fd526f5ec42afdd9f85607baa5d4d1f035", size = 22724, upload-time = "2026-02-10T17:41:11.502Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/d5/e19058eaae24b8daa2aca5c498faa8a61fbe9b39407c53d3f52dde02603b/pygeoipupdate-0.1.0-py3-none-any.whl", hash = "sha256:6a22ce28d81e544d003c83b0afada0b3f1f4000706deedd374c7ee747740d7bd", size = 28638, upload-time = "2026-02-10T17:41:09.898Z" },
 ]
 
 [[package]]
