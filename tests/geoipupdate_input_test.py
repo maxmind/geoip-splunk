@@ -57,6 +57,7 @@ from geoipupdate_input import (  # noqa: E402  # type: ignore[import-not-found]
     _get_database_names,
     _run_update,
 )
+from pygeoipupdate import Config as PyGeoIPUpdateConfig  # noqa: E402
 from pygeoipupdate.errors import (  # noqa: E402  # type: ignore[import-not-found]
     GeoIPUpdateError,
 )
@@ -592,7 +593,7 @@ def test_stream_events_full_flow_downloads_database(
         # Override the host in the Config to point to our test server
         patch(
             "geoipupdate_input.Config",
-            lambda **kwargs: __import__("pygeoipupdate", fromlist=["Config"]).Config(
+            lambda **kwargs: PyGeoIPUpdateConfig(
                 **{**kwargs, "host": httpserver.url_for("/")}
             ),
         ),
