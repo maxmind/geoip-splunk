@@ -51,14 +51,15 @@ sys.modules["solnlib.conf_manager"] = mock_conf_manager
 sys.modules["solnlib.soln_exceptions"] = mock_soln_exceptions
 
 # Now we can import geoipupdate_input since solnlib is mocked
-from geoipupdate.errors import (  # noqa: E402  # type: ignore[import-not-found]
-    GeoIPUpdateError,
-)
 from geoipupdate_input import (  # noqa: E402  # type: ignore[import-not-found]
     GeoIPUpdateInput,
     _get_account_credentials,
     _get_database_names,
     _run_update,
+)
+from pygeoipupdate import Config as PyGeoIPUpdateConfig  # noqa: E402
+from pygeoipupdate.errors import (  # noqa: E402  # type: ignore[import-not-found]
+    GeoIPUpdateError,
 )
 
 # Test account ID used across tests
@@ -592,7 +593,7 @@ def test_stream_events_full_flow_downloads_database(
         # Override the host in the Config to point to our test server
         patch(
             "geoipupdate_input.Config",
-            lambda **kwargs: __import__("geoipupdate", fromlist=["Config"]).Config(
+            lambda **kwargs: PyGeoIPUpdateConfig(
                 **{**kwargs, "host": httpserver.url_for("/")}
             ),
         ),

@@ -13,12 +13,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "aiohttp>=3.8.0,<4.0.0",
-    "filelock>=3.12.0,<4.0.0",
     "maxminddb>=3.0.0",
+    "pygeoipupdate>=0.1.0",
     "pytest>=9.0.2",
     "pytest-httpserver>=1.0.10",
-    "tenacity>=8.2.0,<10.0.0",
 ]
 lint = [
     "mypy>=1.19.1",
@@ -87,12 +85,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["splunktaucclib", "splunktaucclib.*"]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["geoipupdate", "geoipupdate.*"]
-ignore_missing_imports = true
-# geoipupdate is vendored; check types but suppress errors in vendored code
-follow_imports = "silent"
 
 [[tool.mypy.overrides]]
 module = ["geoipupdate_input", "geoip_utils"]
