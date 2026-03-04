@@ -826,7 +826,7 @@ wheels = [
 
 [[package]]
 name = "splunk-appinspect"
-version = "4.1.2"
+version = "4.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -847,9 +847,9 @@ dependencies = [
     { name = "semver" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/91/39/8efe58ef9a9cfc6071535e2f7d31e80068629b71b45f66be73bc09e11473/splunk_appinspect-4.1.2.tar.gz", hash = "sha256:0e8001167fcf0735d71d67659e09f8ab07e630476e8b10c5b0e94fbaa63af477", size = 632704, upload-time = "2025-12-04T12:47:49.928Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/79/23154c7805c184e92362b443a6ee99713110d686851818c2d88670e1653d/splunk_appinspect-4.1.3.tar.gz", hash = "sha256:6bc8c6d7342543bc124f64765771be4c8e49392a7f850522c967f15ecf2db529", size = 632809, upload-time = "2026-02-25T14:09:37.624Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/b2/73f3a6b370f13bd571ace23393046220db342072d5a026a8bb187a5877f8/splunk_appinspect-4.1.2-py3-none-any.whl", hash = "sha256:0020ce9dd76f57afc0486411bcbeba06f5d1c752e962967bc9debdbf412836c5", size = 771236, upload-time = "2025-12-04T12:47:47.925Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/30/5522e7e5b8d277683a6adf72271eb4706f7cdea9b512401c7779cea57172/splunk_appinspect-4.1.3-py3-none-any.whl", hash = "sha256:d0b2c3533edeb91cc7014399cffd420aaedbcba38395a1a4bfe1fde433dac569", size = 771409, upload-time = "2026-02-25T14:09:36.065Z" },
 ]
 
 [[package]]
