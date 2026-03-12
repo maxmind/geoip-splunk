@@ -96,7 +96,7 @@
         "name": "geoip",
         "restRoot": "geoip",
         "version": "1.0.0",
-        "displayName": "GeoIP for Splunk",
+        "displayName": "MaxMind GeoIP App",
         "schemaVersion": "0.0.10",
         "supportedThemes": [
             "light",

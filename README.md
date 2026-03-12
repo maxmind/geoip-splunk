@@ -1,19 +1,19 @@
-# GeoIP for Splunk
+# MaxMind GeoIP App
 
 ## Description
 
-This is a Splunk add-on for [MaxMind GeoIP
+This is a Splunk app for [MaxMind GeoIP
 database](https://www.maxmind.com/en/geoip-databases) lookups. It provides
 IP geolocation and enrichment using MaxMind's GeoIP and GeoLite databases,
 including country, city, anonymous IP detection, ISP, and more.
 
-The add-on provides a streaming search command (`geoip`) that enriches events
+The app provides a streaming search command (`geoip`) that enriches events
 with data from one or more MaxMind databases.
 
 ## Quick Start
 
-1. Install the add-on and restart Splunk
-2. Go to **Apps > GeoIP for Splunk > Configuration**
+1. Install the app and restart Splunk
+2. Go to **Apps > MaxMind GeoIP App > Configuration**
 3. Enter your MaxMind **Account ID** and **License Key**
 4. Go to **Configuration > Databases** and add the databases you want
 5. Click **Save**
@@ -47,7 +47,7 @@ Common databases:
 
 ### Database Updates
 
-Databases are checked for updates every hour and stored in the add-on's
+Databases are checked for updates every hour and stored in the app's
 `local/data/` directory. They are preserved across upgrades.
 
 In Search Head Cluster environments, each member downloads its own databases
@@ -153,10 +153,10 @@ search matches the name configured in the Databases tab.
 
 ## Incompatibility Notice
 
-This add-on is incompatible with
+This app is incompatible with
 [MaxMind GeoIP2 Add-on for Splunk (TA-geoip2)](https://splunkbase.splunk.com/app/6169).
-Both add-ons provide a `geoip` search command, so only one can be installed at
-a time.
+Both provide a `geoip` search command, so only one can be installed at a
+time.
 
 ## Support
 
@@ -164,7 +164,7 @@ Please report all issues with this code using the
 [GitHub issue tracker](https://github.com/maxmind/geoip-splunk/issues).
 
 If you are having an issue with the MaxMind database or service that is not
-specific to this add-on, please see
+specific to this app, please see
 [MaxMind support](https://www.maxmind.com/en/support).
 
 ## Requirements
@@ -178,12 +178,12 @@ Bug reports and pull requests are welcome on
 
 ## Versioning
 
-This add-on uses [Semantic Versioning](https://semver.org/).
+This app uses [Semantic Versioning](https://semver.org/).
 
 ## Copyright and License
 
 Copyright (c) 2026 MaxMind, Inc.
 
-This add-on is available as open source under the terms of the [Apache
+This app is available as open source under the terms of the [Apache
 License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT), at
 your option.
