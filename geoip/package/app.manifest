@@ -1,7 +1,7 @@
 {
     "schemaVersion": "2.0.0",
     "info": {
-        "title": "GeoIP for Splunk",
+        "title": "MaxMind GeoIP App",
         "id": {
             "group": null,
             "name": "geoip",

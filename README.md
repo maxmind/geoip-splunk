@@ -1,4 +1,4 @@
-# GeoIP for Splunk
+# MaxMind GeoIP App
 
 ## Description
 
@@ -13,7 +13,7 @@ with data from one or more MaxMind databases.
 ## Quick Start
 
 1. Install the app and restart Splunk
-2. Go to **Apps > GeoIP for Splunk > Configuration**
+2. Go to **Apps > MaxMind GeoIP App > Configuration**
 3. Enter your MaxMind **Account ID** and **License Key**
 4. Go to **Configuration > Databases** and add the databases you want
 5. Click **Save**
