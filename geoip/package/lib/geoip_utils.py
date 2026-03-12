@@ -1,4 +1,4 @@
-"""Shared utilities for the GeoIP add-on."""
+"""Shared utilities for the GeoIP app."""
 
 import logging
 import os
@@ -66,7 +66,7 @@ def get_database_directory() -> Path:
     Database storage location: $SPLUNK_HOME/etc/apps/geoip/local/data/
 
     Why /local/data/:
-    - The /local/ directory is preserved across add-on upgrades
+    - The /local/ directory is preserved across app upgrades
     - Apps can write to their own /local/ directory in both Enterprise and Cloud
     - Using a /data/ subdirectory keeps databases separate from .conf files
 

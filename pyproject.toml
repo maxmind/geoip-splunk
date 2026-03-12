@@ -1,5 +1,5 @@
 [project]
-name = "maxmind-splunk-add-on"
+name = "maxmind-splunk-app"
 version = "1.0.0"
 description = "MaxMind database lookups in Splunk"
 readme = "README.md"

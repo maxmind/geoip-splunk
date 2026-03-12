@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def additional_packaging(ta_name: str) -> None:
-    """Copy LICENSE files and README.md from repo root into the built add-on."""
+    """Copy LICENSE files and README.md from repo root into the built app."""
     repo_root = Path(__file__).parent.parent
     output_dir = Path("output") / ta_name
 

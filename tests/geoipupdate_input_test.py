@@ -26,7 +26,7 @@ sys.path.insert(0, str(lib_dir))
 sys.path.insert(0, str(bin_dir))
 
 # Mock solnlib before importing geoipupdate_input since solnlib is not
-# installed in the dev environment (it's only in the add-on's runtime deps)
+# installed in the dev environment (it's only in the app's runtime deps)
 mock_conf_manager = MagicMock()
 mock_soln_exceptions = MagicMock()
 
