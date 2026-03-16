@@ -54,9 +54,7 @@
     "tasks": null,
     "inputGroups": null,
     "incompatibleApps": {
-        "TA-geoip2": {
-            "version": "*"
-        }
+        "TA-geoip2": "*"
     },
     "platformRequirements": null,
     "supportedDeployments": [
