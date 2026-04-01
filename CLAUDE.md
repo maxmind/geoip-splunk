@@ -98,11 +98,11 @@ precious lint -g
 precious tidy -g
 
 # Splunk Cloud compatibility check (run after build)
-precious lint --command appinspect geoip-1.0.0.tar.gz
+precious lint --command appinspect geoip-1.1.0.tar.gz
 
 # Install to Splunk (requires Splunk 10.2)
-splunk install app /path/to/geoip-1.0.0.tar.gz
-splunk install app /path/to/geoip-1.0.0.tar.gz -update true  # Update existing
+splunk install app /path/to/geoip-1.1.0.tar.gz
+splunk install app /path/to/geoip-1.1.0.tar.gz -update true  # Update existing
 ```
 
 ## Project Structure
@@ -174,7 +174,7 @@ Uses ruff (linting + formatting) and mypy (type checking), orchestrated via prec
 
 For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built package:
 ```bash
-precious lint --command appinspect geoip-1.0.0.tar.gz
+precious lint --command appinspect geoip-1.1.0.tar.gz
 ```
 
 This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`).
@@ -259,11 +259,13 @@ Custom search command configuration. Unlike `app.conf`, UCC **replaces** (not me
 [geoip]
 filename = geoip.py
 chunked = true
+local = true
 python.version = python3
 python.required = 3.13
 ```
 
 - `chunked = true` is required for streaming commands using the Splunk SDK
+- `local = true` keeps the command on the search head so it does not depend on peer-local MaxMind databases or updater state
 - `python.version` is for backward compatibility with Splunk < 10.2
 - `python.required` is used by Splunk 10.2+ (takes precedence over `python.version`)
 
@@ -394,7 +396,7 @@ When reinstalling, fully remove the old app first to avoid cached libraries:
 ```bash
 splunk remove app geoip
 splunk restart
-splunk install app /path/to/geoip-1.0.0.tar.gz
+splunk install app /path/to/geoip-1.1.0.tar.gz
 ```
 
 ## Logging
