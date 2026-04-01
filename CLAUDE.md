@@ -259,11 +259,13 @@ Custom search command configuration. Unlike `app.conf`, UCC **replaces** (not me
 [geoip]
 filename = geoip.py
 chunked = true
+local = true
 python.version = python3
 python.required = 3.13
 ```
 
 - `chunked = true` is required for streaming commands using the Splunk SDK
+- `local = true` keeps the command on the search head so it does not depend on peer-local MaxMind databases or updater state
 - `python.version` is for backward compatibility with Splunk < 10.2
 - `python.required` is used by Splunk 10.2+ (takes precedence over `python.version`)
 
