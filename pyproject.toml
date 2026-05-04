@@ -7,7 +7,7 @@ license = "Apache-2.0 OR MIT"
 license-files = ["LICENSE-*"]
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "pip>=26.0",
+    "pip>=26.1",
     "splunk-add-on-ucc-framework>=6.4.0",
 ]
 
