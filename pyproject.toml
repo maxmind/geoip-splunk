@@ -15,7 +15,7 @@ dependencies = [
 dev = [
     "maxminddb>=3.0.0",
     "pygeoipupdate>=0.1.0",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-httpserver>=1.0.10",
 ]
 lint = [
