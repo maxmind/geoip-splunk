@@ -7,6 +7,13 @@
   the `geoipupdate_input` modular input's default instance is re-enabled,
   and the `[script://...]` stanza and its `geoipupdate_script.py` wrapper
   are removed.
+* Force the `geoip` search command to run only on the search head by injecting
+  `@Configuration(distributed=False)` into the generated command wrapper during
+  the post-build hook. The `local = true` setting added in 1.1.0 is an
+  SCP1-only setting that Splunk ignores for chunked (SCP2) commands, so the
+  command was still being distributed to indexers and users had to prepend
+  `| localop`. Reporting the command as `stateful` is the built-in equivalent
+  of `localop` and removes that requirement.
 
 ## 1.1.3 (2026-06-30)
 
