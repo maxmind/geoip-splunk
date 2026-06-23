@@ -118,6 +118,6 @@ fi
 
 git commit -m "Update for $tag" -a
 
-git push
+git push -u origin HEAD
 
 gh release create --target "$(git branch --show-current)" -t "$version" -n "$notes" "$tag"
