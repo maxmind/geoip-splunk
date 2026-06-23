@@ -87,6 +87,7 @@ if [[ "$date" != "$(date +"%Y-%m-%d")" ]]; then
 fi
 
 tag="v$version"
+tarball="geoip-$version.tar.gz"
 
 if [ -n "$(git status --porcelain)" ]; then
     echo ". is not clean." >&2
@@ -102,6 +103,17 @@ replace_version .github/workflows/lint.yml '(?<=geoip-).+?(?=\.tar\.gz)'
 
 echo "Test results:"
 uv run pytest tests
+
+# Build the tarball now so a build failure aborts before we commit, and so it
+# is ready to attach to the release (we use immutable releases, so assets
+# cannot be added after the fact).
+echo $'\nBuilding package:'
+./build.sh
+
+if [ ! -f "$tarball" ]; then
+    echo "Expected $tarball was not produced by build.sh" >&2
+    exit 1
+fi
 
 echo $'\nDiff:'
 git diff
@@ -120,4 +132,4 @@ git commit -m "Update for $tag" -a
 
 git push -u origin HEAD
 
-gh release create --target "$(git branch --show-current)" -t "$version" -n "$notes" "$tag"
+gh release create --target "$(git branch --show-current)" -t "$version" -n "$notes" "$tag" "$tarball"
