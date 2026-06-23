@@ -12,6 +12,18 @@ check_command() {
     fi
 }
 
+# Substitute the version in $file using the given perl regex. Aborts if the
+# regex matched nothing, so a broken pattern can't silently leave a stale
+# version behind.
+replace_version() {
+    local file=$1
+    local regex=$2
+    VERSION=$version perl -i -pe '
+        $count += s/'"$regex"'/$ENV{VERSION}/g;
+        END { $count or die "'"$file"': version substitution matched nothing\n" }
+    ' "$file"
+}
+
 # Verify gh CLI is authenticated
 if ! gh auth status &>/dev/null; then
     echo "Error: gh CLI is not authenticated. Run 'gh auth login' first."
@@ -81,9 +93,12 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-# Update versions in globalConfig.json and pyproject.toml
-perl -pi -e "s/(?<="version": \").+?(?=\")/$version/gsm" geoip/globalConfig.json
-perl -pi -e "s/(?<=^version = \").+?(?=\")/$version/gsm" pyproject.toml
+# Update versions in the repo
+replace_version geoip/globalConfig.json    '(?<="version": ").+?(?=")'
+replace_version pyproject.toml             '(?<=^version = ").+?(?=")'
+replace_version geoip/package/app.manifest '(?<="version": ").+?(?=")'
+replace_version build.sh                   '(?<=--ta-version )\S+'
+replace_version .github/workflows/lint.yml '(?<=geoip-).+?(?=\.tar\.gz)'
 
 echo "Test results:"
 uv run pytest tests
