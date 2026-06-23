@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.1
+## 1.1.1 (2026-06-23)
 
 * Declare the `interval`, `disabled`, and `run_only_one` settings in the
   `geoipupdate_input` modular input's `inputs.conf.spec` so the input's
