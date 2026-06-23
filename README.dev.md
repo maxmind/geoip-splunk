@@ -4,3 +4,5 @@ How to release:
 * Run dev-bin/release.sh
 * dev-bin/release.sh should create the tarball e.g. geoip-1.2.3.tar.gz
 * Create a new release on Splunkbase using the tarball
+* Remember to set the release visible and as the default version in
+  Splunkbase
