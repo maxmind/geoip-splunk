@@ -76,7 +76,7 @@ def test_get_scheme() -> None:
     assert scheme["use_external_validation"] is False
     assert scheme["streaming_mode_xml"] is True
     assert scheme["use_single_instance"] is False
-    assert scheme["args"] == []
+    assert scheme["args"] == ["run_only_one"]
 
 
 def test_validate_input_does_nothing() -> None:

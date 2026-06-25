@@ -47,7 +47,7 @@ class GeoIPUpdateInput:
             "use_external_validation": False,
             "streaming_mode_xml": True,
             "use_single_instance": False,
-            "args": [],
+            "args": ["run_only_one"],
         }
 
     def validate_input(self, definition: object) -> None:
@@ -247,7 +247,11 @@ def _run_update(
 # Entry point for Splunk modular input
 if __name__ == "__main__":
     # Import here to avoid issues when module is imported for testing
-    from splunklib.modularinput import Scheme, Script  # type: ignore[import-not-found]
+    from splunklib.modularinput import (  # type: ignore[import-not-found]
+        Argument,
+        Scheme,
+        Script,
+    )
 
     class GeoIPUpdateScript(GeoIPUpdateInput, Script):  # type: ignore[misc]
         """Splunk modular input script.
@@ -267,6 +271,12 @@ if __name__ == "__main__":
             scheme.use_external_validation = False
             scheme.streaming_mode = Scheme.streaming_mode_xml
             scheme.use_single_instance = False
+            # Declare run_only_one so Splunk recognizes it as a parameter of
+            # this modular input. On Splunk Cloud Victoria this is required for
+            # the inputs.conf run_only_one value to be honored; with
+            # run_only_one = false, each search head cluster member runs the
+            # input and downloads its own databases.
+            scheme.add_argument(Argument("run_only_one", required_on_create=False))
             return scheme
 
     sys.exit(GeoIPUpdateScript().run(sys.argv))
