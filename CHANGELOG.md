@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.2
+## 1.1.2 (2026-06-25)
 
 * Declare `run_only_one` as a scheme argument in the `geoipupdate_input`
   modular input's Python scheme (`get_scheme`), in addition to the
