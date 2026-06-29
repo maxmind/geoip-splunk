@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.3 (unreleased)
+
+* Add a scripted-input variant (`[script://...]`) of the database updater
+  as a wrapper (`geoipupdate_script.py`) around the existing
+  `run_database_update()` logic, and disable the `geoipupdate_input`
+  modular input's default instance. This tests whether a scripted input
+  runs on every search head cluster member in Splunk Cloud, unlike the
+  modular input which only runs on one. The updater should continue to
+  function through this alternate mechanism.
+
 ## 1.1.2 (2026-06-25)
 
 * Declare `run_only_one` as a scheme argument in the `geoipupdate_input`
