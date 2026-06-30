@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.3 (unreleased)
+## 1.1.3 (2026-06-30)
 
 * Add a scripted-input variant (`[script://...]`) of the database updater
   as a wrapper (`geoipupdate_script.py`) around the existing
