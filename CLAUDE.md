@@ -73,12 +73,14 @@ enabled instead:
 - `package/bin/geoipupdate_script.py` is a thin wrapper that reads the session
   key from stdin and calls the shared `run_database_update()` from
   `geoipupdate_input.py` (the core update logic is not duplicated).
-- The `[script://./bin/geoipupdate_script.py]` stanza sets
-  `passAuth = splunk-system-user`, which makes Splunk generate an auth token
+- The `[script://$SPLUNK_HOME/etc/apps/geoip/bin/geoipupdate_script.py]` stanza
+  sets `passAuth = splunk-system-user`, which makes Splunk generate an auth token
   (session key) and pass it on stdin. The script's stdout would be indexed, so
-  the wrapper prints nothing and logs via solnlib to the log file. The leading
-  `./` is Splunk's documented form for a path relative to the app directory, so
-  it stays correct regardless of the installed app folder name.
+  the wrapper prints nothing and logs via solnlib to the log file. The path uses
+  the absolute `$SPLUNK_HOME/etc/apps/<app>/bin/` form because that is
+  AppInspect's preferred pattern (`check_scripted_inputs_cmd_path_pattern`); the
+  relative `./bin/` form is allowed but raises a Splunk Cloud warning. The app
+  folder is always `geoip` for the published app, so hardcoding it is safe.
 - `python.version`/`python.required` work for `[script://]` stanzas the same way
   as for the modular input; `python.required = 3.13` selects Python 3.13.
 
