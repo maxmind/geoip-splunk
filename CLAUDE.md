@@ -465,7 +465,7 @@ GitHub Actions workflows run on push and pull request:
 - **codeql-analysis.yml**: CodeQL security scanning (also weekly)
 - **zizmor.yml**: Audits workflow files for security issues
 
-Dependabot is configured to update uv dependencies and GitHub Actions versions daily.
+Dependabot is configured to update uv dependencies, the app runtime dependencies in `geoip/package/lib/requirements.txt` (pip ecosystem), and GitHub Actions versions daily.
 
 ## Key Constraints
 
