@@ -1,5 +1,5 @@
 splunktaucclib==8.2.0
 splunk-sdk==3.0.0
-solnlib==7.0.0
-maxminddb==3.0.0
+solnlib==8.1.0
+maxminddb==3.1.1
 pygeoipupdate>=0.1.0,<1.0.0

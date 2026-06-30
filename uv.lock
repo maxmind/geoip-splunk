@@ -422,7 +422,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "maxminddb", specifier = ">=3.0.0" },
+    { name = "maxminddb", specifier = ">=3.1.1" },
     { name = "pygeoipupdate", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-httpserver", specifier = ">=1.0.10" },
