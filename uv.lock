@@ -417,7 +417,7 @@ lint = [
 [package.metadata]
 requires-dist = [
     { name = "pip", specifier = ">=26.1.2" },
-    { name = "splunk-add-on-ucc-framework", specifier = ">=6.5.1" },
+    { name = "splunk-add-on-ucc-framework", specifier = ">=6.5.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -839,7 +839,7 @@ wheels = [
 
 [[package]]
 name = "splunk-add-on-ucc-framework"
-version = "6.5.1"
+version = "6.5.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "addonfactory-splunk-conf-parser-lib" },
@@ -852,9 +852,9 @@ dependencies = [
     { name = "packaging" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/63/f7216ea88d6f594ee16a25f5ca26302a253dd391f1cb1c5edd5498e1b5e4/splunk_add_on_ucc_framework-6.5.1.tar.gz", hash = "sha256:1d4d60ff924581e2728d138c6d61452ef8d473fcf2e63f18702e9eeef4bbb996", size = 5647940, upload-time = "2026-06-10T20:49:13.454Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/e3/ae9a4f954c0d0bf68f9a8b5b2c4396eb75363255cf884fc5b8d309afd2ab/splunk_add_on_ucc_framework-6.5.2.tar.gz", hash = "sha256:2916f5d71b2b227b7e12628b4f9bfb0969570d94e9ef61b994fba9ea923f9c79", size = 6509275, upload-time = "2026-07-02T13:17:41.903Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/22/fb4c0135806762901625d0b3b35e13de7e93dbee78b09b906a1503cb34a1/splunk_add_on_ucc_framework-6.5.1-py3-none-any.whl", hash = "sha256:46fa1dede110873042dd5f03631db8e6409d2a843f9ee8d25bcb712de443bb6e", size = 6979721, upload-time = "2026-06-10T20:49:11.488Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/87/c0cede372e21713121d7cf7057ccb79c4bbac5f8c316da4fc2e90dfd3876/splunk_add_on_ucc_framework-6.5.2-py3-none-any.whl", hash = "sha256:bda649f3518a906372b5f391c50bec83461aa4aa06335ba6664bcdf3efd583f0", size = 8708342, upload-time = "2026-07-02T13:17:39.706Z" },
 ]
 
 [[package]]
