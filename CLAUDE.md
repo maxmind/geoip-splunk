@@ -53,40 +53,14 @@ For testing, set the `MAXMIND_DB_DIR` environment variable to override the datab
 ### Automatic Updates
 
 The `geoipupdate_input` modular input downloads and updates databases automatically:
-- A default input (`geoipupdate_input://default`) provides the update logic (no UI, runs in background)
+- A default input (`geoipupdate_input://default`) is enabled out of the box (no UI, runs in background)
 - Users configure their MaxMind credentials and add databases to download
 - Updates only run when credentials AND at least one database are configured
 - Uses the `pygeoipupdate` PyPI package
 - Default update interval is 3600 seconds (1 hour)
-- `run_only_one = false` in `inputs.conf` ensures each node in a Search Head Cluster downloads its own databases
+- `run_only_one = false` in `inputs.conf` is intended to make each Search Head Cluster member download its own databases, but on Splunk Cloud Victoria only one member runs the input (GitHub #76, unresolved); the 1.1.3 scripted-input experiment did not fix this either
 
 The input gracefully handles incomplete configuration - it logs a warning and skips the update until both credentials and databases are configured.
-
-#### Scripted Input Variant (GitHub #76 experiment)
-
-The modular input only runs on one search head cluster member on Splunk Cloud
-Victoria, so other members never download the databases. As an experiment to see
-whether a *scripted* input runs on every member, the modular `://default`
-instance is currently **disabled** in `inputs.conf` and a scripted input is
-enabled instead:
-
-- `package/bin/geoipupdate_script.py` is a thin wrapper that reads the session
-  key from stdin and calls the shared `run_database_update()` from
-  `geoipupdate_input.py` (the core update logic is not duplicated).
-- The `[script://$SPLUNK_HOME/etc/apps/geoip/bin/geoipupdate_script.py]` stanza
-  sets `passAuth = splunk-system-user`, which makes Splunk generate an auth token
-  (session key) and pass it on stdin. The script's stdout would be indexed, so
-  the wrapper prints nothing and logs via solnlib to the log file. The path uses
-  the absolute `$SPLUNK_HOME/etc/apps/<app>/bin/` form because that is
-  AppInspect's preferred pattern (`check_scripted_inputs_cmd_path_pattern`); the
-  relative `./bin/` form is allowed but raises a Splunk Cloud warning. The app
-  folder is always `geoip` for the published app, so hardcoding it is safe.
-- `python.version`/`python.required` work for `[script://]` stanzas the same way
-  as for the modular input; `python.required = 3.13` selects Python 3.13.
-
-To revert to the modular input: set `disabled = 0` on `[geoipupdate_input://default]`,
-remove the `[script://...]` stanza, and delete `geoipupdate_script.py` and its
-test. `geoipupdate_input.py` is unchanged by this experiment.
 
 #### Modular Input Registration
 
