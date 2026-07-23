@@ -10,6 +10,9 @@ including country, city, anonymous IP detection, ISP, and more.
 The app provides a streaming search command (`geoip`) that enriches events
 with data from one or more MaxMind databases.
 
+The app can be found on
+[Splunkbase](https://splunkbase.splunk.com/app/8554).
+
 ## Quick Start
 
 1. Install the app and restart Splunk
