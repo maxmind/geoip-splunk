@@ -58,7 +58,7 @@ The `geoipupdate_input` modular input downloads and updates databases automatica
 - Updates only run when credentials AND at least one database are configured
 - Uses the `pygeoipupdate` PyPI package
 - Default update interval is 3600 seconds (1 hour)
-- `run_only_one = false` in `inputs.conf` ensures each node in a Search Head Cluster downloads its own databases
+- `run_only_one = false` in `inputs.conf` is intended to make each Search Head Cluster member download its own databases, but on Splunk Cloud Victoria only one member runs the input (GitHub #76, unresolved); the 1.1.3 scripted-input experiment did not fix this either
 
 The input gracefully handles incomplete configuration - it logs a warning and skips the update until both credentials and databases are configured.
 
