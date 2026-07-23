@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.4 (unreleased)
+
+* Revert the scripted-input experiment from 1.1.3. The scripted input did
+  not run on every search head cluster member in Splunk Cloud either, so
+  the `geoipupdate_input` modular input's default instance is re-enabled,
+  and the `[script://...]` stanza and its `geoipupdate_script.py` wrapper
+  are removed.
+
 ## 1.1.3 (2026-06-30)
 
 * Add a scripted-input variant (`[script://...]`) of the database updater
