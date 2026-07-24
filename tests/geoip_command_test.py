@@ -5,12 +5,13 @@ GeoIP2-Country-Test.mmdb which contains known test data.
 """
 
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import geoip_command
 import pytest
 
 if TYPE_CHECKING:
-    from geoip_command import Metadata, SearchInfo
+    from geoip_command import Configuration, Metadata, SearchInfo
 
 
 class MockSearchInfo:
@@ -18,6 +19,7 @@ class MockSearchInfo:
 
     app: str = "geoip"
     session_key: str = "test_session_key"
+    sid: str = "1234.56789"
 
 
 class MockMetadata:
@@ -396,3 +398,106 @@ def test_subdivisions_flattened() -> None:
     # Last subdivision is also available at -1
     assert result["subdivisions.-1.iso_code"] == "E"
     assert result["subdivisions.-1.names.en"] == "Östergötland County"
+
+
+class MockConfiguration:
+    """Mock command configuration settings."""
+
+    distributed: bool = True
+
+
+class MockPreparableCommand:
+    """Mock wrapper command object passed to prepare()."""
+
+    configuration: "Configuration"
+    metadata: "Metadata"
+
+    def __init__(self, sid: str) -> None:
+        self.configuration = MockConfiguration()
+        self.metadata = MockMetadata()
+        self.metadata.searchinfo.sid = sid
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1", True),
+        (1, True),
+        ("true", True),
+        ("0", False),
+        (0, False),
+        ("false", False),
+        (None, False),
+    ],
+)
+def test_prepare_sets_distributed_from_setting(
+    value: object,
+    expected: bool,  # noqa: FBT001
+) -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = not expected
+
+    with patch.object(
+        geoip_command, "get_run_on_indexers_setting", return_value=value
+    ) as read_mock:
+        geoip_command.prepare(command)
+
+    read_mock.assert_called_once_with("test_session_key")
+    assert command.configuration.distributed is expected
+
+
+def test_prepare_defaults_to_search_head_only_on_settings_read_failure() -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "get_logger") as logger_mock,
+    ):
+        geoip_command.prepare(command)
+
+    logger_mock.return_value.exception.assert_called_once()
+    assert command.configuration.distributed is False
+
+
+def test_prepare_settings_read_failure_survives_a_broken_logger() -> None:
+    """get_logger reads its log level from the same conf over REST, so
+    whatever broke the settings read may break it too - the fallback to
+    search-head-only must not depend on it."""
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(
+            geoip_command,
+            "get_logger",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+    ):
+        geoip_command.prepare(command)
+
+    assert command.configuration.distributed is False
+
+
+def test_prepare_on_indexer_reports_distributed_and_never_touches_rest() -> None:
+    command = MockPreparableCommand(sid="remote_sh1_1234.56789")
+    command.configuration.distributed = False
+
+    with patch.object(
+        geoip_command,
+        "get_run_on_indexers_setting",
+        side_effect=AssertionError("prepare() must not touch REST on an indexer"),
+    ) as read_mock:
+        geoip_command.prepare(command)
+
+    read_mock.assert_not_called()
+    assert command.configuration.distributed is True

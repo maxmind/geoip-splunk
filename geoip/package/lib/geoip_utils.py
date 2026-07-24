@@ -35,6 +35,8 @@ MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
 
 # Conf coordinates of the "Run on indexers" toggle in geoip_settings.conf:
 # the stanza (also the settings tab's REST id) and the field within it.
+# Shared by the settings handler, which writes the stanza, and the search
+# command, which reads it per search, so the two sides cannot drift.
 DISTRIBUTION_STANZA = "distribution"
 RUN_ON_INDEXERS_FIELD = "run_on_indexers"
 
@@ -153,6 +155,26 @@ def get_database_directory() -> Path:
         return Path(env_dir)
 
     return Path(__file__).resolve().parent.parent / "databases"
+
+
+def get_run_on_indexers_setting(session_key: str) -> object:
+    """Read the raw "Run on indexers" value from geoip_settings.conf.
+
+    Reads through solnlib with app_name pinned to the geoip app, like
+    get_logger: the geoip command can be dispatched from any app, and the
+    SDK's command.service is namespaced to the dispatching app, so a read
+    through it resolves the conf only via the app's export = system
+    metadata. Pinning the namespace removes that dependency.
+
+    Raises on any failure, including solnlib being unavailable (it is not
+    part of the knowledge bundle, but the setting is only read on the
+    search head); callers decide the fallback.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_settings.conf"
+        raise RuntimeError(msg)
+    conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf(CONF_NAME)
+    return conf.get(DISTRIBUTION_STANZA).get(RUN_ON_INDEXERS_FIELD)
 
 
 def get_fallback_logger() -> logging.Logger:

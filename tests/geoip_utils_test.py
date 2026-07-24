@@ -5,6 +5,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
+
+import pytest
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
@@ -48,3 +51,37 @@ def test_is_truthy() -> None:
     assert not geoip_utils.is_truthy("0")
     assert not geoip_utils.is_truthy("false")
     assert not geoip_utils.is_truthy(None)
+
+
+def test_get_run_on_indexers_setting_reads_from_the_geoip_namespace() -> None:
+    """The read must pin app_name to the geoip app: the command can be
+    dispatched from any app, and the dispatching app's namespace only
+    resolves this conf via the app's export = system metadata."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = {geoip_utils.RUN_ON_INDEXERS_FIELD: "1"}
+
+        result = geoip_utils.get_run_on_indexers_setting("test_session_key")
+
+    manager_mod.ConfManager.assert_called_once_with("test_session_key", "geoip")
+    manager_mod.ConfManager.return_value.get_conf.assert_called_once_with(
+        "geoip_settings"
+    )
+    conf.get.assert_called_once_with(geoip_utils.DISTRIBUTION_STANZA)
+    assert result == "1"
+
+
+def test_get_run_on_indexers_setting_raises_without_solnlib() -> None:
+    """On an indexer solnlib is absent; the caller's fallback handles it."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.get_run_on_indexers_setting("test_session_key")

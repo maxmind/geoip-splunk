@@ -10,7 +10,13 @@ from typing import Any, Protocol
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
-from geoip_utils import get_database_directory, get_logger
+from geoip_utils import (
+    get_database_directory,
+    get_fallback_logger,
+    get_logger,
+    get_run_on_indexers_setting,
+    is_truthy,
+)
 
 
 class SearchInfo(Protocol):
@@ -18,6 +24,7 @@ class SearchInfo(Protocol):
 
     app: str
     session_key: str
+    sid: str
 
 
 class Metadata(Protocol):
@@ -33,6 +40,73 @@ class Command(Protocol):
     field: str
     prefix: str
     metadata: Metadata
+
+
+class Configuration(Protocol):
+    """Protocol for the command's runtime configuration settings."""
+
+    distributed: bool
+
+
+class PreparableCommand(Protocol):
+    """Protocol for the wrapper command object passed to prepare()."""
+
+    configuration: Configuration
+    metadata: Metadata
+
+
+def prepare(command: PreparableCommand) -> None:
+    """Decide whether this search distributes the command to the indexers.
+
+    The generated wrapper (bin/geoip.py) calls this from its prepare()
+    method, which the Splunk SDK runs before writing the getinfo reply -
+    the reply that tells Splunk whether the command is distributable
+    streaming (distributed=True) or search-head-only (distributed=False,
+    reported as type=stateful).
+
+    On the search head, the "Run on indexers" setting decides. On an
+    indexer the search head has already made the decision, so report
+    distributed streaming and never touch REST: the app's conf endpoints
+    do not exist there. Indexer invocations are identified by the remote_
+    prefix Splunk puts on their search id.
+    """
+    sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
+    if sid.startswith("remote_"):
+        command.configuration.distributed = True
+        return
+    command.configuration.distributed = _indexer_execution_enabled(command)
+
+
+def _indexer_execution_enabled(command: PreparableCommand) -> bool:
+    """Read the "Run on indexers" setting from geoip_settings.conf.
+
+    The read goes through solnlib pinned to the geoip app's namespace
+    (get_run_on_indexers_setting) rather than through command.service,
+    which the SDK namespaces to the app the search was dispatched from -
+    a read from there resolves the conf only via the app's
+    export = system metadata.
+
+    Any failure means search-head-only execution: a broken settings read
+    must never take the search down, and running on the search head is
+    always safe since the databases live there. Logging the failure must
+    not take it down either: get_logger reads its log level from this
+    same conf over REST, so whatever broke the settings read (splunkd
+    unreachable, expired session key) may make it raise too.
+    """
+    session_key = command.metadata.searchinfo.session_key
+    try:
+        value = get_run_on_indexers_setting(session_key)
+    except Exception:  # any failure means don't distribute
+        try:
+            logger = get_logger(session_key)
+        except Exception:  # noqa: BLE001 - see the docstring
+            logger = get_fallback_logger()
+        logger.exception(
+            "Failed to read the run_on_indexers setting; "
+            "running on the search head only"
+        )
+        return False
+    return is_truthy(value)
 
 
 def stream(

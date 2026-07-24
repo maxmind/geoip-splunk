@@ -33,6 +33,18 @@
   saving the setting overrides the `geoip_mmdb` replication allowlist key
   in `local/distsearch.conf` - the real `databases/*.mmdb` pattern when
   enabled, the shipped match-nothing pattern when disabled.
+* Decide command distribution at search time from the "Run on indexers"
+  setting. The post-build hook (renamed to
+  `make_command_distribution_toggleable`) now also injects a `prepare()`
+  method into the generated command wrapper; the Splunk SDK calls it
+  before answering the getinfo exchange, and it sets the `distributed`
+  configuration setting from `geoip_settings.conf`. The
+  `@Configuration(distributed=False)` rewrite from earlier in 1.1.4
+  remains as a fail-safe default. On an indexer, `prepare()` reports
+  distributed streaming without touching REST (the app's conf endpoints
+  do not exist there); indexer invocations are identified by the
+  `remote_` prefix on their search id. Any failure to read the setting
+  falls back to search-head-only execution.
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,
