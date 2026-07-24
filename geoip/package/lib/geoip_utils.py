@@ -33,6 +33,11 @@ MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
 # the bundle (indexer execution off).
 MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
 
+# Conf coordinates of the "Run on indexers" toggle in geoip_settings.conf:
+# the stanza (also the settings tab's REST id) and the field within it.
+DISTRIBUTION_STANZA = "distribution"
+RUN_ON_INDEXERS_FIELD = "run_on_indexers"
+
 # Field specifications for the settings REST handler (geoip_rh_settings.py).
 # That file builds RestField objects from these specs. Tests compare these
 # specs against globalConfig.json to catch drift between the two files.
@@ -57,6 +62,17 @@ SETTINGS_FIELD_SPECS = {
                 {"type": "regex", "pattern": r"^[A-Za-z0-9_]+$"},
                 {"type": "string", "min_len": 8, "max_len": 100},
             ],
+        },
+    ],
+    DISTRIBUTION_STANZA: [
+        {
+            # Checkbox: stored as 1/0. UCC checkbox entities do not take
+            # validators.
+            "field": RUN_ON_INDEXERS_FIELD,
+            "required": False,
+            "encrypted": False,
+            "default": 0,
+            "validators": [],
         },
     ],
     "logging": [

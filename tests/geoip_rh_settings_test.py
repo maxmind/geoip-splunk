@@ -11,10 +11,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from geoip_utils import SETTINGS_FIELD_SPECS
 
 repo_root = Path(__file__).parent.parent
 global_config_path = repo_root / "geoip" / "globalConfig.json"
+
+# Tabs whose fields are defined in globalConfig.json. The logging tab is a
+# UCC builtin ({"type": "loggingTab"}) with no entity list to compare.
+_TABS = ["account", "distribution"]
 
 
 def _load_global_config() -> dict[str, Any]:
@@ -28,24 +33,26 @@ def _get_config_tab(config: dict[str, Any], tab_name: str) -> dict[str, Any]:
     return next(t for t in tabs if t.get("name") == tab_name)
 
 
-def test_account_field_names_match() -> None:
+@pytest.mark.parametrize("tab_name", _TABS)
+def test_field_names_match(tab_name: str) -> None:
     config = _load_global_config()
-    account_tab = _get_config_tab(config, "account")
+    tab = _get_config_tab(config, tab_name)
 
-    config_fields = [e["field"] for e in account_tab["entity"]]
-    spec_fields = [f["field"] for f in SETTINGS_FIELD_SPECS["account"]]
+    config_fields = [e["field"] for e in tab["entity"]]
+    spec_fields = [f["field"] for f in SETTINGS_FIELD_SPECS[tab_name]]
 
     assert spec_fields == config_fields
 
 
-def test_account_field_required_and_encrypted_match() -> None:
+@pytest.mark.parametrize("tab_name", _TABS)
+def test_field_required_and_encrypted_match(tab_name: str) -> None:
     config = _load_global_config()
-    account_tab = _get_config_tab(config, "account")
+    tab = _get_config_tab(config, tab_name)
 
-    for entity in account_tab["entity"]:
+    for entity in tab["entity"]:
         field_name = entity["field"]
         spec = next(
-            s for s in SETTINGS_FIELD_SPECS["account"] if s["field"] == field_name
+            s for s in SETTINGS_FIELD_SPECS[tab_name] if s["field"] == field_name
         )
 
         assert spec["required"] == entity.get("required", False), (
@@ -56,14 +63,15 @@ def test_account_field_required_and_encrypted_match() -> None:
         )
 
 
-def test_account_validator_patterns_match() -> None:
+@pytest.mark.parametrize("tab_name", _TABS)
+def test_validator_patterns_match(tab_name: str) -> None:
     config = _load_global_config()
-    account_tab = _get_config_tab(config, "account")
+    tab = _get_config_tab(config, tab_name)
 
-    for entity in account_tab["entity"]:
+    for entity in tab["entity"]:
         field_name = entity["field"]
         spec = next(
-            s for s in SETTINGS_FIELD_SPECS["account"] if s["field"] == field_name
+            s for s in SETTINGS_FIELD_SPECS[tab_name] if s["field"] == field_name
         )
 
         config_validators: list[dict[str, Any]] = entity.get("validators", [])

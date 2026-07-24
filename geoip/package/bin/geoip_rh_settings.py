@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 import import_declare_test
 from geoip_handler import trigger_background_update
-from geoip_utils import SETTINGS_FIELD_SPECS
+from geoip_utils import DISTRIBUTION_STANZA, SETTINGS_FIELD_SPECS
 from splunktaucclib.rest_handler import admin_external
 from splunktaucclib.rest_handler.admin_external import AdminExternalHandler
 from splunktaucclib.rest_handler.endpoint import (
@@ -81,6 +81,9 @@ def _build_validator(spec: dict[str, Any]) -> object:
 fields_account = _build_rest_fields(SETTINGS_FIELD_SPECS["account"])
 model_account = RestModel(fields_account, name="account")
 
+fields_distribution = _build_rest_fields(SETTINGS_FIELD_SPECS[DISTRIBUTION_STANZA])
+model_distribution = RestModel(fields_distribution, name=DISTRIBUTION_STANZA)
+
 fields_logging = _build_rest_fields(SETTINGS_FIELD_SPECS["logging"])
 model_logging = RestModel(fields_logging, name="logging")
 
@@ -89,6 +92,7 @@ endpoint = MultipleModel(
     "geoip_settings",
     models=[
         model_account,
+        model_distribution,
         model_logging,
     ],
     need_reload=False,

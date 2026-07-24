@@ -25,6 +25,10 @@
   and `lookups/` directories but not `lib/` or the app's `databases/`
   directory, which is why the command could not previously run on indexers
   even before `distributed=False`.
+* Add a "Distributed Search" tab to the configuration UI with a "Run on
+  indexers" checkbox (`[distribution] run_on_indexers` in
+  `geoip_settings.conf`, off by default). The following changes wire it to
+  knowledge bundle replication and command distribution.
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,
