@@ -24,15 +24,19 @@ Behavior:
 - The `network` field contains the most specific (smallest) CIDR block across all databases
 - Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
 - Events with missing, empty, invalid, or not-found IPs pass through unchanged
+- Runs on the search head by default; optionally on the indexers via the
+  "Run on indexers" setting (see "Command distribution" below)
 
 End-user documentation is in `README.md` (copied into the package by `additional_packaging.py`).
 
 ### Command Architecture
 
-The command implementation in `geoip_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+The command implementation in `geoip_command.py` exposes `stream(command, events)` and `prepare(command)` functions that the UCC-generated wrapper calls (the wrapper's `prepare()` is injected by `additional_packaging.py`). The `command` parameter follows a `Protocol` with:
 - `databases`, `field`, `prefix` - command arguments
 - `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
 - `metadata.searchinfo.app` - the app name
+- `metadata.searchinfo.sid` - the search id (a `remote_` prefix identifies indexer invocations)
+- `configuration.distributed` (prepare() only) - the SDK's runtime configuration
 
 Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
@@ -126,7 +130,8 @@ CHANGELOG.md                  # Release history
     └── zizmor.yml            # GitHub Actions security audit
 geoip/
 ├── globalConfig.json         # Main configuration file for UCC framework
-├── additional_packaging.py   # UCC post-build hook (copies licenses/README)
+├── additional_packaging.py   # UCC post-build hook (copies licenses/README,
+│                             # rewrites the command wrapper for distribution)
 ├── package/
 │   ├── app.manifest          # App metadata (author, version, description)
 │   ├── README.md             # End-user documentation (included in package)
@@ -134,11 +139,14 @@ geoip/
 │   ├── default/
 │   │   ├── app.conf          # Splunk app configuration (merged with generated)
 │   │   ├── commands.conf     # Search command configuration (replaces generated)
-│   │   └── inputs.conf       # Modular input configuration (replaces generated)
+│   │   ├── distsearch.conf   # Knowledge bundle replication rules
+│   │   ├── inputs.conf       # Modular input configuration (replaces generated)
+│   │   └── server.conf       # SHC conf replication (suppresses generated)
 │   ├── bin/                  # Python scripts (inputs, custom commands)
 │   │   ├── geoip_command.py       # The geoip search command
 │   │   ├── geoip_handler.py       # Custom REST handler for databases tab
-│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/logging
+│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/
+│   │   │                          # distribution/logging settings
 │   │   └── geoipupdate_input.py   # Database update modular input
 │   ├── lib/
 │   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
@@ -155,11 +163,15 @@ tests/
 ├── conftest.py                  # Sets MAXMIND_DB_DIR to test database directory
 ├── data/                        # MaxMind-DB submodule (git submodule)
 │   └── test-data/               # Contains test .mmdb files
+├── additional_packaging_test.py # Tests for the UCC post-build hook
+├── distsearch_conf_test.py      # Drift guard for default/distsearch.conf
 ├── geoip_command_test.py        # Tests using various test databases
 ├── geoip_handler_test.py        # Tests for REST handler (databases tab)
-├── geoip_rh_settings_test.py    # Tests for REST handler (account/logging)
+├── geoip_rh_settings_handler_test.py  # Tests for the distribution toggle handling
+├── geoip_rh_settings_test.py    # Drift guard: globalConfig vs SETTINGS_FIELD_SPECS
 ├── geoip_utils_test.py          # Tests for shared utility functions
-└── geoipupdate_input_test.py    # Tests for database update functionality
+├── geoipupdate_input_test.py    # Tests for database update functionality
+└── server_conf_test.py          # Drift guard for default/server.conf
 ```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
@@ -192,7 +204,7 @@ This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment r
 ### globalConfig.json
 
 The main UCC configuration file. Defines:
-- Configuration tabs (accounts, databases, logging)
+- Configuration tabs (account, databases, distribution, logging)
 - Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
 
@@ -273,29 +285,102 @@ python.required = 3.13
 ```
 
 - `chunked = true` is required for streaming commands using the Splunk SDK
-- `local = true` is an SCP1-only setting and is **ignored** for chunked (SCP2) commands. It is left in as a harmless fallback, but it does **not** keep the command on the search head. See "Forcing search-head-only execution" below for what actually works.
+- `local = true` is an SCP1-only setting and is **ignored** for chunked (SCP2) commands. It is left in as a harmless fallback, but it does **not** keep the command on the search head. See "Command distribution" below for what actually works.
 - `python.version` is for backward compatibility with Splunk < 10.2
 - `python.required` is used by Splunk 10.2+ (takes precedence over `python.version`)
 
-#### Forcing search-head-only execution
+#### Command distribution ("Run on indexers")
 
-The command must run only on the search head: the MaxMind databases live in
-the search head's app `databases/` directory, not on the indexers. Under SCP2
-(`chunked = true`), Splunk decides distribution from the command's getinfo
-response, not `commands.conf`. The Splunk SDK defaults to reporting
-distributable streaming (`type = streaming`), so without intervention Splunk
-pushes the command to the indexers and users must prepend `| localop`.
+Under SCP2 (`chunked = true`), Splunk decides distribution from the command's
+getinfo response, not `commands.conf`. The Splunk SDK defaults to reporting
+distributable streaming (`type = streaming`); `distributed=False` makes it
+report `type = stateful` (search-head-only, the built-in equivalent of
+`| localop`). You cannot set `type = stateful` directly in the decorator -
+the SDK constrains a settable `type` to events/reporting/streaming and only
+reaches `stateful` via `distributed=False`.
 
-The fix is `@Configuration(distributed=False)`, which makes the SDK report
-`type = stateful` (search-head-only). UCC has no globalConfig knob for this and
-its custom-command template hardcodes `@Configuration()`, so the post-build
-hook in `additional_packaging.py` (`make_command_search_head_only`) rewrites
-the generated `bin/geoip.py` to inject `distributed=False`. The hook raises if
-the `@Configuration()` marker is missing, so a UCC template change fails the
-build loudly rather than silently regressing. Note: you cannot set
-`type = stateful` directly in the decorator - the SDK constrains a settable
-`type` to events/reporting/streaming and only reaches `stateful` via
-`distributed=False`.
+Distribution is decided per search by `prepare()` in `geoip_command.py`,
+which the SDK calls before writing the getinfo reply:
+
+- On the search head, it sets `configuration.distributed` from the "Run on
+  indexers" setting (`[distribution] run_on_indexers` in
+  `geoip_settings.conf`), defaulting to search-head-only on any failure.
+  The read goes through solnlib pinned to the geoip app's namespace
+  (`get_run_on_indexers_setting`), like `get_logger` - not through
+  `command.service`, which is namespaced to the dispatching app and only
+  resolves the conf via the app's `export = system` metadata.
+- On an indexer (search ids there carry a `remote_` prefix), it reports
+  distributed streaming and never touches REST - the app's conf endpoints
+  do not exist on peers, where the app runs from the knowledge bundle under
+  `var/run/searchpeers/`, not `etc/apps/`.
+
+UCC has no globalConfig knob for any of this and its custom-command template
+hardcodes `@Configuration()` with no extension point, so the post-build hook
+in `additional_packaging.py` (`make_command_distribution_toggleable`)
+rewrites the generated `bin/geoip.py`: it imports `prepare` from
+`geoip_command.py`, injects a `prepare()` method, and changes the decorator
+to `@Configuration(distributed=False)` as a fail-safe default in case
+`prepare()` somehow does not run. The hook raises if any marker is missing,
+so a UCC template change fails the build loudly rather than silently
+regressing.
+
+### package/default/distsearch.conf and server.conf
+
+What reaches the indexers is controlled by `default/distsearch.conf`:
+
+- Splunk's default replication allowlist covers app `bin/` and `lookups/`
+  directories plus `.conf`/`.meta` files, but NOT `lib/`. The app adds
+  allowlist entries for the minimal set the command imports at search time
+  on an indexer: `lib/splunklib`, `lib/maxminddb*` (the `*` also matches
+  the `maxminddb-<version>.dist-info` directory, which maxminddb reads at
+  import time via `importlib.metadata.version()` - without it the command
+  crashes on the indexer), and `lib/geoip_utils.py` (about 1.6 MB total).
+  The remaining vendored libraries (grpc, aiohttp, opentelemetry, ...;
+  about 35 MB) are download-only dependencies and stay out of the bundle.
+  `geoip_utils.get_logger` falls back to a basic logger on indexers where
+  solnlib is unavailable.
+- The databases live in the app's `databases/` directory, which is not in
+  Splunk's default allowlist, so nothing there (the databases, the
+  updater's in-progress `*.temporary` downloads, its lock file) rides the
+  bundle unless allowlisted. The `geoip_mmdb` allowlist key ships as a
+  match-nothing placeholder; saving "Run on indexers" overrides it in
+  `local/distsearch.conf` (see `_apply_mmdb_replication` in
+  `geoip_rh_settings.py`): the real `apps/geoip/databases/*.mmdb` pattern
+  when enabled, the placeholder when disabled (conf keys cannot be deleted
+  through the REST API).
+- IMPORTANT restart semantics (verified on a live cluster): splunkd only
+  reads the replication allowlist/denylist at startup, so toggling the
+  setting changes bundle content only after the search head restarts.
+  The command's `distributed` flag, read per search in `prepare()`,
+  switches immediately - so between enabling and restarting, geoip
+  searches fail with the missing-database error (disabling is safe
+  immediately). New or updated database files under unchanged rules enter
+  the bundle automatically within a bundle cycle or two - no restart. The
+  help text, README, and the missing-database error all reflect this.
+
+Bundle pushes are triggered by searches dispatched to the indexers, and the
+triggering search still runs against the previous bundle - hence the
+tailored "Database not found on this indexer" error in `geoip_command.py`
+explaining the first-search timing. There is no silent fallback to the
+search head: pipeline placement is fixed at parse time, and yielding events
+unenriched would silently produce wrong results.
+
+`default/server.conf` must be maintained by hand because UCC skips
+generating it when the package ships one. It replicates the app's custom
+conf files and `distsearch.conf` across search head cluster members (so the
+toggle's local override reaches all of them). It needs no
+`conf_replication_summary` keys - and AppInspect rejects them in an app's
+server.conf - because the `databases/` directory is outside the SHC
+replication summary entirely. That matters: members each download their own
+copies (direct disk writes are not journaled, so they never replicate
+between members in steady state anyway), and a destructive resync (`splunk
+resync shcluster-replicated-config`) was verified live to rewrite
+summarized files from the captain's baseline IN PLACE (same inode, new
+mtime) - a concurrent search reading a database mid-resync could see
+inconsistent data. Keeping the databases out of the summary makes the
+updater's atomic temp-file-and-rename write the only way they are ever
+written. `tests/server_conf_test.py` and `tests/distsearch_conf_test.py`
+guard these files against drift.
 
 ### Splunk path patterns in conf files
 
@@ -351,7 +436,7 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 - UCC automatically sets `python.version = python3` in generated `commands.conf` and `inputs.conf`
 - Warning about "not auto generated by UCC framework" for custom settings is expected
 - `ucc-gen init` creates a `README.md` in the app source directory, but it's not needed and doesn't get included in the output package. Use `package/README.md` for end-user documentation instead.
-- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`. It also rewrites the generated `bin/geoip.py` to add `distributed=False` to the `@Configuration()` decorator (see "Forcing search-head-only execution").
+- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`. It also rewrites the generated `bin/geoip.py` to inject a `prepare()` method and a fail-safe `distributed=False` default (see "Command distribution").
 
 ### Custom Search Command File Naming
 
@@ -406,7 +491,7 @@ This duplication is unavoidable - UCC either generates the entire file OR copies
 | File | Purpose |
 |------|---------|
 | `geoip_handler.py` | Shared module with `GeoipDatabasesHandler` class and background update functions |
-| `geoip_rh_settings.py` | Complete custom handler for account/logging settings (field definitions duplicated) |
+| `geoip_rh_settings.py` | Complete custom handler for account/distribution/logging settings (field definitions duplicated); also writes the distsearch.conf override for the indexer toggle |
 | `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler` |
 
 **Handler class pattern:**
