@@ -11,6 +11,11 @@
   This is groundwork for optional indexer execution. There is no
   migration: databases in the old location are ignored and fresh copies
   are downloaded to `databases/` by the hourly update.
+* Ship `default/server.conf` instead of relying on the UCC-generated one
+  (UCC skips generating it when the package provides its own). In addition
+  to the two `conf_replication_include` lines UCC generated, it now
+  replicates `distsearch.conf` across search head cluster members (needed
+  for the upcoming indexer execution toggle).
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,
