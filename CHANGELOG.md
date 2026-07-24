@@ -16,6 +16,15 @@
   to the two `conf_replication_include` lines UCC generated, it now
   replicates `distsearch.conf` across search head cluster members (needed
   for the upcoming indexer execution toggle).
+* Ship `default/distsearch.conf` with knowledge bundle replication rules:
+  the minimal set of libraries the `geoip` command needs at search time on
+  an indexer (`splunklib`, `maxminddb`, `geoip_utils.py`; about 1.6 MB) is
+  added to the replication allowlist, along with a `geoip_mmdb` key for
+  the databases that defaults to a pattern matching nothing (indexer
+  execution will be opt-in). Splunk's default rules replicate app `bin/`
+  and `lookups/` directories but not `lib/` or the app's `databases/`
+  directory, which is why the command could not previously run on indexers
+  even before `distributed=False`.
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,

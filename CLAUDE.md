@@ -297,6 +297,20 @@ build loudly rather than silently regressing. Note: you cannot set
 `type` to events/reporting/streaming and only reaches `stateful` via
 `distributed=False`.
 
+### Splunk path patterns in conf files
+
+The path patterns in conf files like `distsearch.conf`'s
+`[replicationAllowlist]`/`[replicationDenylist]` stanzas use Splunk's
+pattern language (the "match language" in `props.conf.spec`), not plain
+regexes: `...` matches anything, `*` matches anything except `/`, `|` and
+`()` work as in regexes, and **a dot matches a literal dot** - never
+escape it. Splunkd escapes dots itself, so a hand-written `\.` becomes a
+match for backslash-then-dot and the pattern silently matches nothing
+(verified on a live cluster: a replication rule ending `\.mmdb` left the
+file in the knowledge bundle; the unescaped pattern removed it). Splunk's
+own defaults never escape dots, e.g. `*.conf`, `....pyc$`,
+`lookups/*.(tmp$|index((|.alive|.lock)$|/...))`.
+
 ## Dependencies
 
 There are three places where dependencies are managed:

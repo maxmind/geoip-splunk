@@ -17,6 +17,22 @@ except ImportError:
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
 
+# Whether the MaxMind databases ride the knowledge bundle to indexers is
+# controlled through this [replicationAllowlist] key in distsearch.conf. The
+# shipped default (default/distsearch.conf) is a pattern that matches
+# nothing, keeping the databases out of the bundle; enabling "Run on
+# indexers" overrides the key in local/distsearch.conf with the real
+# pattern, since conf keys cannot be deleted through the REST API (see
+# geoip_rh_settings.py).
+MMDB_ALLOWLIST_KEY = "geoip_mmdb"
+
+# Allow pattern: databases ride the bundle (indexer execution on).
+MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
+
+# Allow-nothing pattern: matches no real file, so the databases stay out of
+# the bundle (indexer execution off).
+MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
+
 # Field specifications for the settings REST handler (geoip_rh_settings.py).
 # That file builds RestField objects from these specs. Tests compare these
 # specs against globalConfig.json to catch drift between the two files.
