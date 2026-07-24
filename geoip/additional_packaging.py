@@ -25,7 +25,7 @@ def make_command_search_head_only(output_dir: Path) -> None:
     ``@Configuration()`` decorator. Under Search Command Protocol v2
     (``chunked = true``) the Splunk SDK then reports the command as
     distributable streaming, so Splunk pushes it down to the indexers. The
-    MaxMind databases live in the search head's app ``local/data`` directory,
+    MaxMind databases live in the search head's app ``databases`` directory,
     not on the indexers, so without this users have to prepend ``| localop``
     to every search.
 

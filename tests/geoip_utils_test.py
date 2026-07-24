@@ -31,9 +31,8 @@ def test_get_database_directory_with_env_override(
 def test_get_database_directory_default(monkeypatch: MonkeyPatch) -> None:
     """Test the default database directory path."""
     monkeypatch.delenv("MAXMIND_DB_DIR", raising=False)
-    monkeypatch.setenv("SPLUNK_HOME", "/opt/splunk")
 
     import geoip_utils  # noqa: PLC0415
 
     result = geoip_utils.get_database_directory()
-    assert result == Path("/opt/splunk/etc/apps/geoip/local/data")
+    assert result == (lib_dir.parent / "databases").resolve()

@@ -2,6 +2,15 @@
 
 ## 1.1.4 (unreleased)
 
+* Store MaxMind databases in the app's `databases/` directory instead of
+  `local/data/`. A directory of the app's own is outside search head
+  cluster replication summaries and outside Splunk's default knowledge
+  bundle allowlist, so replication of the databases is controlled entirely
+  by the app, and the new path is resolved relative to the app root so it
+  also works when the command runs from a knowledge bundle on an indexer.
+  This is groundwork for optional indexer execution. There is no
+  migration: databases in the old location are ignored and fresh copies
+  are downloaded to `databases/` by the hourly update.
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,

@@ -63,15 +63,36 @@ SETTINGS_FIELD_SPECS = {
 def get_database_directory() -> Path:
     """Get the directory where MaxMind databases are stored.
 
-    Database storage location: $SPLUNK_HOME/etc/apps/geoip/local/data/
+    Database storage location: the app's databases/ directory, located
+    relative to this file (<app root>/lib/geoip_utils.py -> <app
+    root>/databases/).
 
-    Why /local/data/:
-    - The /local/ directory is preserved across app upgrades
-    - Apps can write to their own /local/ directory in both Enterprise and Cloud
-    - Using a /data/ subdirectory keeps databases separate from .conf files
+    Why databases/ (a custom app-level directory):
+    - It is outside search head cluster conf replication summaries, which
+      capture only local/..., lookups/*, and metadata: members do not
+      re-summarize hundreds of MB of binaries every minute, a destructive
+      resync cannot rewrite a database in place mid-read, and no
+      conf_replication_summary excludelist in server.conf (which
+      AppInspect rejects) is needed to prevent any of that
+    - It is outside Splunk's default knowledge bundle allowlist (app bin/
+      and lookups/), so whether the databases replicate to indexers is
+      controlled solely by the app's own distsearch.conf allowlist entry
+    - Resolving the path relative to this file works both when the app is
+      installed ($SPLUNK_HOME/etc/apps/geoip/) and when it runs from a
+      knowledge bundle on an indexer
+      ($SPLUNK_HOME/var/run/searchpeers/<bundle>/apps/geoip/)
 
     Why NOT other locations:
-    - /default/ or package /data/: Overwritten on upgrades, read-only after install
+    - lookups/: rides the knowledge bundle for free via the default
+      allowlist, but is swept into SHC replication summaries, and keeping
+      the databases out of those requires the server.conf excludelist
+      AppInspect rejects
+    - local/data/ (the previous location): local/... is recursively
+      included in SHC replication summaries too, and $SPLUNK_HOME-based
+      resolution breaks on indexers where the app root is not under
+      etc/apps
+    - /default/ or package /data/: Overwritten on upgrades, read-only after
+      install
     - $SPLUNK_HOME/var/lib/splunk/: Not a standard app data location
     - $SPLUNK_HOME/share/: System directory, not for app data
     - KV Store: Only for structured data, not binary files like .mmdb
@@ -79,6 +100,7 @@ def get_database_directory() -> Path:
     References:
     - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Apparchitectureandobjectownership
     - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Configurationfiledirectories
+    - https://docs.splunk.com/Documentation/Splunk/latest/DistSearch/Whatsearchheadssend
 
     Returns:
         Path to the database directory.
@@ -88,8 +110,7 @@ def get_database_directory() -> Path:
     if env_dir := os.environ.get("MAXMIND_DB_DIR"):
         return Path(env_dir)
 
-    splunk_home = os.environ.get("SPLUNK_HOME", "/opt/splunk")
-    return Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
+    return Path(__file__).resolve().parent.parent / "databases"
 
 
 def get_fallback_logger() -> logging.Logger:

@@ -51,7 +51,7 @@ Common databases:
 ### Database Updates
 
 Databases are checked for updates every hour and stored in the app's
-`local/data/` directory. They are preserved across upgrades.
+`databases/` directory. They are preserved across upgrades.
 
 In Search Head Cluster environments, each member downloads its own databases
 independently.

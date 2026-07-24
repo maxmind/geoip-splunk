@@ -43,10 +43,18 @@ Database readers are cached at module level in `_readers`. This means:
 
 ### Storage Location
 
-Databases are stored at `$SPLUNK_HOME/etc/apps/geoip/local/data/`:
-- The `/local/` directory is preserved across app upgrades
-- Apps can write to their own `/local/` directory in both Enterprise and Cloud
-- The `/data/` subdirectory keeps databases separate from .conf files
+Databases are stored in the app's `databases/` directory, resolved relative to
+`lib/geoip_utils.py` (not via `$SPLUNK_HOME`):
+- A custom app-level directory is outside search head cluster conf
+  replication summaries (which capture only `local/...`, `lookups/*`, and
+  metadata) and outside Splunk's default knowledge bundle allowlist (app
+  `bin/` and `lookups/`), so whether the databases replicate anywhere is
+  controlled entirely by the app's own `distsearch.conf` allowlist entry -
+  and no `conf_replication_summary` excludelist in `server.conf`, which
+  AppInspect rejects, is needed to keep them out of SHC baselines
+- The relative resolution works both when the app is installed
+  (`etc/apps/geoip/`) and when it runs from a knowledge bundle on an indexer
+  (`var/run/searchpeers/<bundle>/apps/geoip/`)
 
 For testing, set the `MAXMIND_DB_DIR` environment variable to override the database directory.
 
@@ -272,7 +280,7 @@ python.required = 3.13
 #### Forcing search-head-only execution
 
 The command must run only on the search head: the MaxMind databases live in
-the search head's `local/data` directory, not on the indexers. Under SCP2
+the search head's app `databases/` directory, not on the indexers. Under SCP2
 (`chunked = true`), Splunk decides distribution from the command's getinfo
 response, not `commands.conf`. The Splunk SDK defaults to reporting
 distributable streaming (`type = streaming`), so without intervention Splunk
