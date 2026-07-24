@@ -24,7 +24,18 @@ from typing import TYPE_CHECKING, Any
 
 import import_declare_test
 from geoip_handler import trigger_background_update
-from geoip_utils import DISTRIBUTION_STANZA, SETTINGS_FIELD_SPECS
+from geoip_utils import (
+    APP_NAME,
+    DISTRIBUTION_STANZA,
+    MMDB_ALLOW_NOTHING_PATTERN,
+    MMDB_ALLOW_PATTERN,
+    MMDB_ALLOWLIST_KEY,
+    RUN_ON_INDEXERS_FIELD,
+    SETTINGS_FIELD_SPECS,
+    get_logger,
+    is_truthy,
+)
+from solnlib import conf_manager
 from splunktaucclib.rest_handler import admin_external
 from splunktaucclib.rest_handler.admin_external import AdminExternalHandler
 from splunktaucclib.rest_handler.endpoint import (
@@ -33,8 +44,11 @@ from splunktaucclib.rest_handler.endpoint import (
     field,
     validator,
 )
+from splunktaucclib.rest_handler.error import RestError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from splunktaucclib.rest_handler.admin_external import ConfInfo
 
 # NOTE: UCC-generated handlers include util.remove_http_proxy_env_vars() here,
@@ -107,6 +121,9 @@ class GeoipSettingsHandler(AdminExternalHandler):
 
     def handleEdit(self, confInfo: ConfInfo) -> None:
         """Handle settings updates."""
+        if self.callerArgs.id == DISTRIBUTION_STANZA:
+            self._save_distribution(confInfo, AdminExternalHandler.handleEdit)
+            return
         AdminExternalHandler.handleEdit(self, confInfo)
         # Only trigger update for account changes, not logging changes
         if self.callerArgs.id == "account":
@@ -114,9 +131,93 @@ class GeoipSettingsHandler(AdminExternalHandler):
 
     def handleCreate(self, confInfo: ConfInfo) -> None:
         """Handle initial settings creation."""
+        if self.callerArgs.id == DISTRIBUTION_STANZA:
+            self._save_distribution(confInfo, AdminExternalHandler.handleCreate)
+            return
         AdminExternalHandler.handleCreate(self, confInfo)
         if self.callerArgs.id == "account":
             trigger_background_update(self.getSessionKey())
+
+    def handleRemove(self, confInfo: ConfInfo) -> None:
+        """Handle settings removal."""
+        AdminExternalHandler.handleRemove(self, confInfo)
+        if self.callerArgs.id == DISTRIBUTION_STANZA:
+            # Removing the stanza reverts run_on_indexers to its default
+            # of 0, so restore the allow-nothing pattern to match.
+            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=False)
+
+    def _save_distribution(
+        self,
+        confInfo: ConfInfo,
+        save: Callable[[AdminExternalHandler, ConfInfo], None],
+    ) -> None:
+        """Save the distribution stanza and the distsearch override.
+
+        The two writes are ordered so that a failure between them cannot
+        leave the setting enabled while the allowlist still matches
+        nothing - in that state every geoip search distributes, fails on
+        the indexers, and a restart does not recover. Enabling writes
+        distsearch first, so a failure leaves the toggle off; disabling
+        saves the setting first, so a failure leaves only extra
+        replication, which does not break searches.
+        """
+        run_on_indexers = _parse_run_on_indexers(self.callerArgs.data)
+        if run_on_indexers:
+            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=True)
+            save(self, confInfo)
+        else:
+            save(self, confInfo)
+            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=False)
+
+
+def _parse_run_on_indexers(data: dict[str, Any]) -> bool:
+    """Parse the run_on_indexers checkbox value from callerArgs data.
+
+    callerArgs.data maps field names to lists of values; the checkbox
+    posts "1" or "0".
+    """
+    values = data.get(RUN_ON_INDEXERS_FIELD) or [None]
+    return is_truthy(values[0])
+
+
+def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
+    """Point the distsearch.conf allowlist override at the toggle's state.
+
+    The databases live in the app's databases/ directory, which is not in
+    Splunk's default knowledge bundle allowlist, so they only replicate to
+    indexers through the geoip_mmdb [replicationAllowlist] key. The shipped
+    default is a placeholder pattern that matches nothing; enabling "Run on
+    indexers" overrides the key in local/distsearch.conf with the real
+    pattern. Conf keys cannot be deleted through the REST API, so the key
+    is always written with one of the two values.
+    """
+    pattern = MMDB_ALLOW_PATTERN if run_on_indexers else MMDB_ALLOW_NOTHING_PATTERN
+    try:
+        conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf("distsearch")
+        conf.update("replicationAllowlist", {MMDB_ALLOWLIST_KEY: pattern})
+    except Exception as e:
+        get_logger(session_key).exception(
+            "Failed to update the distsearch.conf replication allowlist"
+        )
+        if run_on_indexers:
+            msg = (
+                "Updating distsearch.conf failed, so the setting was not "
+                f"saved and geoip searches will keep running on the search "
+                f"head only. Save again to retry. Error: {e}"
+            )
+        else:
+            msg = (
+                "The setting was saved, but updating distsearch.conf failed, "
+                f"so databases may keep replicating to the indexers. Save "
+                f"again to retry. Error: {e}"
+            )
+        raise RestError(500, msg) from e
+    get_logger(session_key).info(
+        "Set distsearch.conf [replicationAllowlist] %s = %s (run_on_indexers=%s)",
+        MMDB_ALLOWLIST_KEY,
+        pattern,
+        run_on_indexers,
+    )
 
 
 # Entry point: Splunk runs this file as a script when handling REST API requests

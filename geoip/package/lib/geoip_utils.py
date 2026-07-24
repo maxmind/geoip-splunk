@@ -92,6 +92,16 @@ SETTINGS_FIELD_SPECS = {
 }
 
 
+def is_truthy(value: object) -> bool:
+    """Whether a conf or REST value represents true.
+
+    Splunk checkboxes and conf files store booleans as "1"/"0"; accept a
+    few common spellings. Shared by the settings handler and the search
+    command so both sides of the "Run on indexers" toggle agree.
+    """
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
 def get_database_directory() -> Path:
     """Get the directory where MaxMind databases are stored.
 

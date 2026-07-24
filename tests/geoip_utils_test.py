@@ -36,3 +36,15 @@ def test_get_database_directory_default(monkeypatch: MonkeyPatch) -> None:
 
     result = geoip_utils.get_database_directory()
     assert result == (lib_dir.parent / "databases").resolve()
+
+
+def test_is_truthy() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    assert geoip_utils.is_truthy("1")
+    assert geoip_utils.is_truthy(1)
+    assert geoip_utils.is_truthy("TRUE")
+    assert geoip_utils.is_truthy(" yes ")
+    assert not geoip_utils.is_truthy("0")
+    assert not geoip_utils.is_truthy("false")
+    assert not geoip_utils.is_truthy(None)
