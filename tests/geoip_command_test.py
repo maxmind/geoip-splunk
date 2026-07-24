@@ -329,6 +329,28 @@ def test_database_not_found() -> None:
         list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
 
 
+def test_database_not_found_search_head_message() -> None:
+    """The search head message points at the app configuration page."""
+    command = MockCommand(databases="NonExistent-Database")
+
+    with pytest.raises(FileNotFoundError, match="GeoIP app configuration page"):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_database_not_found_on_indexer_message() -> None:
+    """The indexer message suggests checking the database name before
+    the bundle remedies: a mistyped databases= value lands here too, so
+    a missing file does not imply a replication problem."""
+    command = MockCommand(databases="NonExistent-Database")
+    command.metadata.searchinfo.sid = "remote_sh1_1234.56789"
+
+    with pytest.raises(
+        FileNotFoundError,
+        match=r"not found on this indexer.*Check the database name",
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
 def test_invalid_database_name() -> None:
     """Test that invalid database names are rejected."""
     command = MockCommand(databases="../etc/passwd")

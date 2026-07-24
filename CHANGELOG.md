@@ -45,6 +45,11 @@
   do not exist there); indexer invocations are identified by the
   `remote_` prefix on their search id. Any failure to read the setting
   falls back to search-head-only execution.
+* Improve the error when a database file is missing. On an indexer, the
+  error explains that the database has not reached the indexer's
+  knowledge bundle yet - expected on the first search after enabling
+  "Run on indexers" or adding a new database - and how to resolve it. On
+  the search head, it points at the app configuration page.
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,

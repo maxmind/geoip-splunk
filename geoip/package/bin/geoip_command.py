@@ -141,7 +141,9 @@ def stream(
 
     """
     database_names = [name.strip() for name in command.databases.split(",")]
-    readers = [_get_reader(name) for name in database_names]
+    sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
+    on_indexer = sid.startswith("remote_")
+    readers = [_get_reader(name, on_indexer=on_indexer) for name in database_names]
     field = command.field
     prefix = command.prefix
     session_key = command.metadata.searchinfo.session_key
@@ -213,11 +215,13 @@ _readers: dict[str, maxminddb.Reader] = {}
 _VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _get_reader(name: str) -> maxminddb.Reader:
+def _get_reader(name: str, *, on_indexer: bool = False) -> maxminddb.Reader:
     """Get a database reader, opening it if not already cached.
 
     Args:
         name: The database name (e.g., 'GeoIP2-Country')
+        on_indexer: Whether the command is running on an indexer, for a
+            tailored error message when the database is missing
 
     Returns:
         The maxminddb.Reader for the database
@@ -234,7 +238,25 @@ def _get_reader(name: str) -> maxminddb.Reader:
         db_dir = get_database_directory()
         db_path = db_dir / f"{name}.mmdb"
         if not db_path.exists():
-            msg = f"Database not found: {db_path}"
+            if on_indexer:
+                msg = (
+                    f"Database not found on this indexer: {name}.mmdb. "
+                    "Check the database name (case-sensitive) against the "
+                    "GeoIP app configuration page. If it is correct, the "
+                    "database is missing from the knowledge bundle: retry "
+                    "shortly if it was added recently, restart the search "
+                    'head if "Run on indexers" was enabled since its last '
+                    "restart, and otherwise see the app README for bundle "
+                    "size limits and troubleshooting."
+                )
+            else:
+                msg = (
+                    f"Database not found: {db_path}. Check the database "
+                    "name (case-sensitive) against the GeoIP app "
+                    "configuration page; add it there if needed and allow "
+                    "the download to complete (downloads run on save, "
+                    "then hourly)."
+                )
             raise FileNotFoundError(msg)
         _readers[name] = maxminddb.open_database(str(db_path))
     return _readers[name]
