@@ -117,62 +117,9 @@ splunk install app /path/to/geoip-1.1.0.tar.gz
 splunk install app /path/to/geoip-1.1.0.tar.gz -update true  # Update existing
 ```
 
-## Project Structure
-
-```
-CHANGELOG.md                  # Release history
-.github/
-├── dependabot.yml            # Automated dependency updates
-└── workflows/
-    ├── codeql-analysis.yml   # CodeQL security scanning
-    ├── lint.yml              # Formatting, linting, and AppInspect
-    ├── test.yml              # pytest on Ubuntu
-    └── zizmor.yml            # GitHub Actions security audit
-geoip/
-├── globalConfig.json         # Main configuration file for UCC framework
-├── additional_packaging.py   # UCC post-build hook (copies licenses/README,
-│                             # rewrites the command wrapper for distribution)
-├── package/
-│   ├── app.manifest          # App metadata (author, version, description)
-│   ├── README.md             # End-user documentation (included in package)
-│   ├── LICENSES/             # License files included in package
-│   ├── default/
-│   │   ├── app.conf          # Splunk app configuration (merged with generated)
-│   │   ├── commands.conf     # Search command configuration (replaces generated)
-│   │   ├── distsearch.conf   # Knowledge bundle replication rules
-│   │   ├── inputs.conf       # Modular input configuration (replaces generated)
-│   │   └── server.conf       # SHC conf replication (suppresses generated)
-│   ├── bin/                  # Python scripts (inputs, custom commands)
-│   │   ├── geoip_command.py       # The geoip search command
-│   │   ├── geoip_handler.py       # Custom REST handler for databases tab
-│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/
-│   │   │                          # distribution/logging settings
-│   │   └── geoipupdate_input.py   # Database update modular input
-│   ├── lib/
-│   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
-│   │   └── requirements.txt  # Python dependencies for the app
-│   └── static/               # Icons and images
-```
-
 ## Tests
 
 Tests live in `tests/` and use pytest. Test data comes from the `MaxMind-DB` git submodule at `tests/data/`.
-
-```
-tests/
-├── conftest.py                  # Sets MAXMIND_DB_DIR to test database directory
-├── data/                        # MaxMind-DB submodule (git submodule)
-│   └── test-data/               # Contains test .mmdb files
-├── additional_packaging_test.py # Tests for the UCC post-build hook
-├── distsearch_conf_test.py      # Drift guard for default/distsearch.conf
-├── geoip_command_test.py        # Tests using various test databases
-├── geoip_handler_test.py        # Tests for REST handler (databases tab)
-├── geoip_rh_settings_handler_test.py  # Tests for the distribution toggle handling
-├── geoip_rh_settings_test.py    # Drift guard: globalConfig vs SETTINGS_FIELD_SPECS
-├── geoip_utils_test.py          # Tests for shared utility functions
-├── geoipupdate_input_test.py    # Tests for database update functionality
-└── server_conf_test.py          # Drift guard for default/server.conf
-```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
 
@@ -212,36 +159,12 @@ The main UCC configuration file. Defines:
 
 Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or **single-instance forms**:
 
-**Multi-instance table** (for multiple accounts/configurations):
-```json
-{
-    "name": "account",
-    "table": {
-        "actions": ["edit", "delete", "clone"],
-        "header": [{"label": "Name", "field": "name"}]
-    },
-    "entity": [
-        {"field": "name", "required": true, ...},
-        {"field": "api_key", "encrypted": true, ...}
-    ],
-    "title": "Accounts"
-}
-```
+**Multi-instance table** (for multiple accounts/configurations, e.g. the databases tab):
 - Has `table` property with actions and header columns
 - Requires a `name` field to identify each instance
 - UI shows a table with add/edit/delete actions
 
-**Single-instance form** (for one set of settings):
-```json
-{
-    "name": "account",
-    "entity": [
-        {"field": "account_id", "encrypted": true, ...},
-        {"field": "license_key", "encrypted": true, ...}
-    ],
-    "title": "MaxMind Account"
-}
-```
+**Single-instance form** (for one set of settings, e.g. the account tab):
 - No `table` property
 - No `name` field needed
 - UI shows a simple form with save button
@@ -253,16 +176,6 @@ Use `"encrypted": true` on sensitive fields (API keys, passwords). UCC stores th
 ### package/app.manifest
 
 JSON file with app metadata. Note: The `version` field here should match `globalConfig.json` for consistency, but UCC uses the version from `globalConfig.json` as the source of truth and overwrites `app.manifest` during build.
-
-```json
-{
-  "info": {
-    "author": [{"name": "...", "email": "...", "company": "..."}],
-    "title": "...",
-    "description": "..."
-  }
-}
-```
 
 ### package/default/app.conf
 
@@ -406,25 +319,7 @@ There are three places where dependencies are managed:
 
 ### Updating Dependencies
 
-To update all dependencies:
-
-```bash
-# Check for latest versions of mise tools
-mise latest aqua:astral-sh/uv
-mise latest github:houseabsolute/precious
-
-# After updating mise.toml, regenerate the lock file
-mise lock
-
-# Check for latest Python package versions (example)
-curl -s https://pypi.org/pypi/ruff/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
-
-# After updating pyproject.toml, sync the lock file
-uv sync
-
-# Verify everything works
-precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
-```
+To update all dependencies, use the `update-deps` skill (`.claude/skills/update-deps/SKILL.md`).
 
 **Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
@@ -532,25 +427,6 @@ Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`
 
 The shared `get_logger(session_key)` function in `geoip_utils.py` is used by all modules (search command, modular input, REST handlers). It's decorated with `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level setting.
 
-```python
-@lru_cache(maxsize=1)
-def get_logger(session_key: str) -> logging.Logger:
-    if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(APP_NAME)
-        fallback.setLevel(logging.INFO)
-        return fallback
-
-    logger: logging.Logger = solnlib_log.Logs().get_logger(APP_NAME)
-    log_level = conf_manager.get_log_level(
-        logger=logger,
-        session_key=session_key,
-        app_name=APP_NAME,
-        conf_name=CONF_NAME,
-    )
-    logger.setLevel(log_level)
-    return logger
-```
-
 ### Key Points
 
 - **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
@@ -558,17 +434,6 @@ def get_logger(session_key: str) -> logging.Logger:
 - **Caching**: The logger is cached with `lru_cache` so only the first call per process makes a REST API call. Only one entry is cached; concurrent searches with different session keys evict each other, which is fine since the log level is global
 - **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
 - **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
-
-## CI
-
-GitHub Actions workflows run on push and pull request:
-
-- **test.yml**: Runs `uv run pytest tests` on Ubuntu
-- **lint.yml**: Runs `precious tidy --check -a`, `precious lint -a`, builds the package, and runs AppInspect
-- **codeql-analysis.yml**: CodeQL security scanning (also weekly)
-- **zizmor.yml**: Audits workflow files for security issues
-
-Dependabot is configured to update uv dependencies, the app runtime dependencies in `geoip/package/lib/requirements.txt` (pip ecosystem), and GitHub Actions versions daily.
 
 ## Key Constraints
 
