@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -140,6 +142,62 @@ def test_migrate_legacy_databases_keeps_unexpected_files(
     assert (new_dir / "GeoIP2-Country.mmdb").read_bytes() == b"country"
     assert (legacy_dir / "notes.txt").exists()
     logger.exception.assert_not_called()
+
+
+def test_migrate_legacy_databases_skips_a_vanished_database_quietly(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A source that disappeared mid-migration means another process moved
+    it first, which is expected and not worth a warning."""
+    import geoip_utils  # noqa: PLC0415
+
+    legacy_dir, new_dir = _set_up_migration_dirs(tmp_path, monkeypatch)
+    (legacy_dir / "GeoIP2-ASN.mmdb").write_bytes(b"asn")
+    (legacy_dir / "GeoIP2-Country.mmdb").write_bytes(b"country")
+    logger = MagicMock()
+    real_link = os.link
+
+    def link(src: str, dst: str) -> None:
+        if Path(src).name == "GeoIP2-ASN.mmdb":
+            Path(src).unlink()
+            raise FileNotFoundError(errno.ENOENT, "No such file or directory", src)
+        real_link(src, dst)
+
+    with patch("geoip_utils.os.link", side_effect=link):
+        geoip_utils.migrate_legacy_databases(logger)
+
+    assert (new_dir / "GeoIP2-Country.mmdb").read_bytes() == b"country"
+    logger.warning.assert_not_called()
+    logger.exception.assert_not_called()
+
+
+def test_migrate_legacy_databases_warns_when_the_destination_is_gone(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """ENOENT with the source still in place is not the concurrent-migration
+    case: without a warning every database would be skipped silently."""
+    import geoip_utils  # noqa: PLC0415
+
+    legacy_dir, new_dir = _set_up_migration_dirs(tmp_path, monkeypatch)
+    (legacy_dir / "GeoIP2-ASN.mmdb").write_bytes(b"asn")
+    (legacy_dir / "GeoIP2-Country.mmdb").write_bytes(b"country")
+    logger = MagicMock()
+    real_link = os.link
+
+    def link(src: str, dst: str) -> None:
+        if Path(src).name == "GeoIP2-ASN.mmdb":
+            raise FileNotFoundError(errno.ENOENT, "No such file or directory", dst)
+        real_link(src, dst)
+
+    with patch("geoip_utils.os.link", side_effect=link):
+        geoip_utils.migrate_legacy_databases(logger)
+
+    logger.warning.assert_called_once()
+    # The one failure must not cost the other database its migration.
+    assert (new_dir / "GeoIP2-Country.mmdb").read_bytes() == b"country"
+    assert (legacy_dir / "GeoIP2-ASN.mmdb").read_bytes() == b"asn"
 
 
 def test_migrate_legacy_databases_never_raises(

@@ -141,7 +141,26 @@ def migrate_legacy_databases(logger: logging.Logger) -> None:
                     new_path,
                 )
             except FileNotFoundError:
-                continue  # a concurrent migration moved it first
+                # os.link raises ENOENT for either operand. A vanished
+                # source is the benign case - a concurrent migration moved
+                # it first - but anything else (a destination directory
+                # removed since the mkdir above) would otherwise skip every
+                # database without a word.
+                if legacy_path.exists():
+                    logger.warning(
+                        "Could not migrate legacy database %s to %s: no such "
+                        "file or directory (the destination directory may be "
+                        "gone)",
+                        legacy_path,
+                        new_path,
+                    )
+                else:
+                    logger.debug(
+                        "Legacy database %s vanished; a concurrent migration "
+                        "moved it first",
+                        legacy_path,
+                    )
+                continue
             else:
                 logger.info("Migrated database %s to %s", legacy_path, new_path)
             legacy_path.unlink(missing_ok=True)
