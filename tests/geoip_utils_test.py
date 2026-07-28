@@ -142,6 +142,10 @@ def test_migrate_legacy_databases_keeps_unexpected_files(
     assert (new_dir / "GeoIP2-Country.mmdb").read_bytes() == b"country"
     assert (legacy_dir / "notes.txt").exists()
     logger.exception.assert_not_called()
+    # The leftovers keep the legacy directory in replication summaries, so
+    # they are named rather than passed over in silence.
+    logger.warning.assert_called_once()
+    assert "notes.txt" in logger.warning.call_args.args
 
 
 def test_migrate_legacy_databases_skips_a_vanished_database_quietly(
@@ -194,7 +198,9 @@ def test_migrate_legacy_databases_warns_when_the_destination_is_gone(
     with patch("geoip_utils.os.link", side_effect=link):
         geoip_utils.migrate_legacy_databases(logger)
 
-    logger.warning.assert_called_once()
+    assert any(
+        "Could not migrate" in call.args[0] for call in logger.warning.call_args_list
+    )
     # The one failure must not cost the other database its migration.
     assert (new_dir / "GeoIP2-Country.mmdb").read_bytes() == b"country"
     assert (legacy_dir / "GeoIP2-ASN.mmdb").read_bytes() == b"asn"

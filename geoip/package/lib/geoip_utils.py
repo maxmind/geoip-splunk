@@ -1,6 +1,5 @@
 """Shared utilities for the GeoIP app."""
 
-import contextlib
 import logging
 import os
 from functools import lru_cache
@@ -179,8 +178,20 @@ def migrate_legacy_databases(logger: logging.Logger) -> None:
             legacy_dir / ".geoipupdate.lock",
         ):
             leftover.unlink(missing_ok=True)
-        with contextlib.suppress(OSError):  # not empty: unexpected files
+        try:
             legacy_dir.rmdir()
+        except OSError:
+            # Anything the globs above do not cover (a .mmdb.gz, a stale
+            # .md5, a subdirectory, a database this run could not move)
+            # keeps the directory alive, and with it the search head
+            # cluster replication summary entries the migration exists to
+            # remove. Say so rather than treating it as success.
+            logger.warning(
+                "Left %s in place; unexpected files remain there and will "
+                "stay in search head cluster replication summaries: %s",
+                legacy_dir,
+                ", ".join(sorted(p.name for p in legacy_dir.iterdir())),
+            )
     except Exception:  # migration must never take down the caller
         logger.exception("Failed to migrate databases from %s", legacy_dir)
 
