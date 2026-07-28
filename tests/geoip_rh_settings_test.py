@@ -17,14 +17,29 @@ from geoip_utils import SETTINGS_FIELD_SPECS
 repo_root = Path(__file__).parent.parent
 global_config_path = repo_root / "geoip" / "globalConfig.json"
 
-# Tabs whose fields are defined in globalConfig.json. The logging tab is a
-# UCC builtin ({"type": "loggingTab"}) with no entity list to compare.
-_TABS = ["account", "distribution"]
+# The logging tab is a UCC builtin ({"type": "loggingTab"}) with no entity
+# list to compare against.
+_LOGGING_TAB = "logging"
 
 
 def _load_global_config() -> dict[str, Any]:
     with global_config_path.open() as f:
         return json.load(f)  # type: ignore[no-any-return]
+
+
+def _settings_tabs() -> list[str]:
+    """Names of the settings tabs defined in globalConfig.json.
+
+    Derived rather than hardcoded so a tab added there and forgotten in
+    SETTINGS_FIELD_SPECS fails a test instead of being skipped. Multi-
+    instance tables (the databases tab) are a separate endpoint with their
+    own conf file, so they are not part of these specs.
+    """
+    tabs = _load_global_config()["pages"]["configuration"]["tabs"]
+    return [t["name"] for t in tabs if "name" in t and "table" not in t]
+
+
+_TABS = _settings_tabs()
 
 
 def _get_config_tab(config: dict[str, Any], tab_name: str) -> dict[str, Any]:
@@ -101,3 +116,10 @@ def test_validator_patterns_match(tab_name: str) -> None:
 def test_logging_field_exists() -> None:
     spec_fields = [f["field"] for f in SETTINGS_FIELD_SPECS["logging"]]
     assert "loglevel" in spec_fields
+
+
+def test_specs_cover_exactly_the_configured_tabs() -> None:
+    """Every settings tab in globalConfig.json needs a spec, and vice
+    versa: a spec-less tab cannot be saved through the REST endpoint, and a
+    tab-less spec is a stanza nothing writes."""
+    assert set(SETTINGS_FIELD_SPECS) == {*_TABS, _LOGGING_TAB}

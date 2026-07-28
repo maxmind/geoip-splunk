@@ -80,7 +80,26 @@ from geoip_utils import (  # noqa: E402
     MMDB_ALLOWLIST_KEY,
     REPLICATION_ALLOWLIST_STANZA,
     RUN_ON_INDEXERS_FIELD,
+    SETTINGS_FIELD_SPECS,
 )
+
+
+def test_endpoint_exposes_every_settings_stanza() -> None:
+    """A stanza in globalConfig.json and SETTINGS_FIELD_SPECS but missing
+    from the endpoint's models is invisible to the REST handler: saving that
+    tab fails, and for the distribution tab prepare() would keep reading a
+    value that can never change.
+
+    geoip_rh_settings_test.py ties SETTINGS_FIELD_SPECS to globalConfig.json,
+    so together the two cover the whole chain.
+    """
+    model_names = {
+        call.kwargs["name"] for call in mock_endpoint.RestModel.call_args_list
+    }
+    assert model_names == set(SETTINGS_FIELD_SPECS)
+
+    models = mock_endpoint.MultipleModel.call_args.kwargs["models"]
+    assert len(models) == len(SETTINGS_FIELD_SPECS)
 
 
 @pytest.mark.parametrize(
