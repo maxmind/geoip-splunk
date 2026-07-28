@@ -296,11 +296,13 @@ What reaches the indexers is controlled by `default/distsearch.conf`:
   reads the replication allowlist/denylist at startup, so toggling the
   setting changes bundle content only after the search head restarts.
   The command's `distributed` flag, read per search in `prepare()`,
-  switches immediately - so between enabling and restarting, geoip
-  searches fail with the missing-database error (disabling is safe
-  immediately). New or updated database files under unchanged rules enter
-  the bundle automatically within a bundle cycle or two - no restart. The
-  help text, README, and the missing-database error all reflect this.
+  switches immediately - so in a distributed deployment, geoip searches
+  fail with the missing-database error between enabling and restarting
+  (disabling is safe immediately). On a single instance with no search
+  peers, distributing changes nothing and nothing fails. New or updated
+  database files under unchanged rules enter the bundle automatically
+  within a bundle cycle or two - no restart. The help text, README, and
+  the missing-database error all reflect this.
 
 Bundle pushes are triggered by searches dispatched to the indexers, and the
 triggering search still runs against the previous bundle - hence the

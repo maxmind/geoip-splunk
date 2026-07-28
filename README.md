@@ -168,10 +168,12 @@ startup. The same applies when disabling the setting - the command stops
 running on the indexers immediately, but the databases remain in the
 knowledge bundle until the next restart.
 
-Between enabling the setting and completing the restart, `geoip` searches
-fail with a "Database not found on this indexer" error: the command starts
-distributing immediately, but the databases cannot enter the knowledge
-bundle until the restart. On Splunk Cloud, restart the search heads
+In a distributed deployment, `geoip` searches fail with a "Database not
+found on this indexer" error between enabling the setting and completing
+the restart: the command starts distributing immediately, but the
+databases cannot enter the knowledge bundle until the restart. On a single
+instance with no search peers there is nothing to distribute to, so
+nothing changes and nothing fails. On Splunk Cloud, restart the search heads
 yourself with the Admin Config Service (ACS) API: its `restart-now`
 endpoint restarts a standalone search head or performs a rolling restart
 of a search head cluster (requires the `sc_admin` role).
