@@ -1,5 +1,6 @@
 """Shared utilities for the GeoIP app."""
 
+import contextlib
 import logging
 import os
 from functools import lru_cache
@@ -102,6 +103,58 @@ def is_truthy(value: object) -> bool:
     command so both sides of the "Run on indexers" toggle agree.
     """
     return str(value).strip().lower() in ("1", "true", "yes")
+
+
+def migrate_legacy_databases(logger: logging.Logger) -> None:
+    """Move databases from the pre-1.2.0 location into databases/.
+
+    Releases before 1.2.0 stored the databases in the app's local/data/
+    directory (resolved via $SPLUNK_HOME). Files left there after an
+    upgrade would sit in search head cluster replication summaries
+    indefinitely, and the geoip command would error until the updater
+    re-downloaded everything. Called by the updater at the start of each
+    run and by the geoip command when a database is missing; once the
+    old directory is gone this is a single stat() no-op.
+
+    The move never overwrites: os.link raises FileExistsError when the
+    destination exists, which means the updater already downloaded a
+    fresher copy there, so the legacy file is only deleted. Both
+    directories are under the app root, on one filesystem. Never raises:
+    a failed migration must not take down a search or an update run -
+    the files are re-downloadable.
+    """
+    splunk_home = os.environ.get("SPLUNK_HOME", "/opt/splunk")
+    legacy_dir = Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
+    if not legacy_dir.is_dir():
+        return
+    try:
+        database_directory = get_database_directory()
+        database_directory.mkdir(parents=True, exist_ok=True)
+        for legacy_path in sorted(legacy_dir.glob("*.mmdb")):
+            new_path = database_directory / legacy_path.name
+            try:
+                os.link(legacy_path, new_path)
+            except FileExistsError:
+                logger.info(
+                    "Removing legacy database %s: %s already exists",
+                    legacy_path,
+                    new_path,
+                )
+            except FileNotFoundError:
+                continue  # a concurrent migration moved it first
+            else:
+                logger.info("Migrated database %s to %s", legacy_path, new_path)
+            legacy_path.unlink(missing_ok=True)
+        # The old updater's scratch files, removed so rmdir can succeed.
+        for leftover in (
+            *legacy_dir.glob("*.temporary"),
+            legacy_dir / ".geoipupdate.lock",
+        ):
+            leftover.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):  # not empty: unexpected files
+            legacy_dir.rmdir()
+    except Exception:  # migration must never take down the caller
+        logger.exception("Failed to migrate databases from %s", legacy_dir)
 
 
 def get_database_directory() -> Path:

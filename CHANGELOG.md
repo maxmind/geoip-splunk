@@ -19,6 +19,10 @@
   bundle allowlist, so replication of the databases is controlled entirely
   by the app, and the new path is resolved relative to the app root so it
   also works when the command runs from a knowledge bundle on an indexer.
+  Databases found in the old location are moved to the new one
+  automatically - by the updater's next run or by the first `geoip`
+  search that would otherwise miss them - so upgrades keep working
+  without waiting for a re-download.
 * Add opt-in support for running the `geoip` command on indexers. A new
   "Distributed Search" configuration tab provides a "Run on indexers"
   checkbox, off by default because large databases increase the knowledge

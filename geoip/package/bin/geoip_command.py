@@ -16,6 +16,7 @@ from geoip_utils import (
     get_logger,
     get_run_on_indexers_setting,
     is_truthy,
+    migrate_legacy_databases,
 )
 
 
@@ -143,10 +144,13 @@ def stream(
     database_names = [name.strip() for name in command.databases.split(",")]
     sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
     on_indexer = sid.startswith("remote_")
-    readers = [_get_reader(name, on_indexer=on_indexer) for name in database_names]
+    session_key = command.metadata.searchinfo.session_key
+    readers = [
+        _get_reader(name, session_key=session_key, on_indexer=on_indexer)
+        for name in database_names
+    ]
     field = command.field
     prefix = command.prefix
-    session_key = command.metadata.searchinfo.session_key
 
     for event in events:
         ip_address = event.get(field)
@@ -215,11 +219,14 @@ _readers: dict[str, maxminddb.Reader] = {}
 _VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _get_reader(name: str, *, on_indexer: bool = False) -> maxminddb.Reader:
+def _get_reader(
+    name: str, *, session_key: str, on_indexer: bool = False
+) -> maxminddb.Reader:
     """Get a database reader, opening it if not already cached.
 
     Args:
         name: The database name (e.g., 'GeoIP2-Country')
+        session_key: Splunk session key, for logging
         on_indexer: Whether the command is running on an indexer, for a
             tailored error message when the database is missing
 
@@ -237,6 +244,11 @@ def _get_reader(name: str, *, on_indexer: bool = False) -> maxminddb.Reader:
     if name not in _readers:
         db_dir = get_database_directory()
         db_path = db_dir / f"{name}.mmdb"
+        if not db_path.exists() and not on_indexer:
+            # After an upgrade the database may still be in the
+            # pre-1.2.0 location. Never on an indexer: the app runs from
+            # the knowledge bundle there and has no legacy directory.
+            migrate_legacy_databases(get_logger(session_key))
         if not db_path.exists():
             if on_indexer:
                 msg = (

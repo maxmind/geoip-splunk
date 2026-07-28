@@ -137,6 +137,34 @@ def test_stream_events_handles_missing_credentials(
     assert "Skipping database update" in mock_logger.warning.call_args[0][0]
 
 
+def test_stream_events_migrates_even_when_unconfigured(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Databases left in the pre-1.2.0 location must move on the next
+    update run even before credentials are configured."""
+    monkeypatch.setenv("MAXMIND_DB_DIR", str(tmp_path))
+
+    input_obj = GeoIPUpdateInput()
+
+    inputs = MagicMock()
+    inputs.metadata = {"session_key": "test_session_key"}
+
+    mock_logger = MagicMock(spec=logging.Logger)
+
+    with (
+        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.migrate_legacy_databases") as migrate_mock,
+        patch(
+            "geoipupdate_input._get_account_credentials",
+            side_effect=ValueError("Credentials not configured"),
+        ),
+    ):
+        input_obj.stream_events(inputs, None)
+
+    migrate_mock.assert_called_once_with(mock_logger)
+
+
 def test_stream_events_handles_missing_databases(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

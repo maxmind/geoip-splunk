@@ -62,6 +62,21 @@ Databases are stored in the app's `databases/` directory, resolved relative to
 
 For testing, set the `MAXMIND_DB_DIR` environment variable to override the database directory.
 
+### Migration from the pre-1.2.0 location
+
+`migrate_legacy_databases` (geoip_utils.py) moves anything left in the old
+location (`local/data/`, resolved via `$SPLUNK_HOME`) into `databases/`. It
+runs at the start of every updater run (even unconfigured) and when the
+command misses a database on the search head - never on an indexer, where
+the app runs from the knowledge bundle. Once the old directory is gone it
+is a single `stat()` no-op. The move is link-then-unlink, which never
+overwrites: a file already in `databases/` is a fresher download, so the
+legacy copy is just deleted. It also never raises - searches and update
+runs must survive a failed migration. Residual gap: on Splunk Cloud
+Victoria only one SHC member runs the input (GitHub #76), so a member that
+neither runs the input nor serves a `geoip` search keeps its legacy files
+indefinitely.
+
 ### Automatic Updates
 
 The `geoipupdate_input` modular input downloads and updates databases automatically:

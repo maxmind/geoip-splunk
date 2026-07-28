@@ -4,6 +4,8 @@ Uses test data from the MaxMind-DB submodule. Test IPs are from
 GeoIP2-Country-Test.mmdb which contains known test data.
 """
 
+import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -11,6 +13,7 @@ import geoip_command
 import pytest
 
 if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
     from geoip_command import Configuration, Metadata, SearchInfo
 
 
@@ -349,6 +352,55 @@ def test_database_not_found_on_indexer_message() -> None:
         match=r"not found on this indexer.*Check the database name",
     ):
         list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_stream_migrates_database_from_legacy_location(
+    tmp_path: "Path",
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    """The first search after an upgrade finds databases still in the
+    pre-1.2.0 local/data location and moves them instead of failing."""
+    legacy_dir = tmp_path / "splunk" / "etc" / "apps" / "geoip" / "local" / "data"
+    legacy_dir.mkdir(parents=True)
+    test_db = Path(__file__).parent / "data" / "test-data" / "GeoIP2-Country-Test.mmdb"
+    shutil.copy(test_db, legacy_dir / "Legacy-Migration-Test.mmdb")
+    monkeypatch.setenv("SPLUNK_HOME", str(tmp_path / "splunk"))
+    new_dir = tmp_path / "databases"
+    monkeypatch.setenv("MAXMIND_DB_DIR", str(new_dir))
+    command = MockCommand(databases="Legacy-Migration-Test")
+
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    assert results[0]["country.iso_code"] == "US"
+    assert (new_dir / "Legacy-Migration-Test.mmdb").exists()
+    assert not legacy_dir.exists()
+
+
+def test_database_not_found_attempts_migration() -> None:
+    command = MockCommand(databases="NonExistent-Database")
+
+    with (
+        patch.object(geoip_command, "migrate_legacy_databases") as migrate_mock,
+        pytest.raises(FileNotFoundError),
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+    migrate_mock.assert_called_once()
+
+
+def test_database_not_found_on_indexer_does_not_migrate() -> None:
+    """No legacy directory exists on an indexer, where the app runs from
+    the knowledge bundle; the command must not try to migrate there."""
+    command = MockCommand(databases="NonExistent-Database")
+    command.metadata.searchinfo.sid = "remote_sh1_1234.56789"
+
+    with (
+        patch.object(geoip_command, "migrate_legacy_databases") as migrate_mock,
+        pytest.raises(FileNotFoundError),
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+    migrate_mock.assert_not_called()
 
 
 def test_invalid_database_name() -> None:
