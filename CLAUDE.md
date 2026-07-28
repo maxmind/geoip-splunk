@@ -278,20 +278,23 @@ What reaches the indexers is controlled by `default/distsearch.conf`:
   on an indexer: `lib/splunklib`, `lib/maxminddb*` (the `*` also matches
   the `maxminddb-<version>.dist-info` directory, which maxminddb reads at
   import time via `importlib.metadata.version()` - without it the command
-  crashes on the indexer), and `lib/geoip_utils.py` (about 1.6 MB total).
+  crashes on the indexer), and `lib/geoip_utils.py` (about 0.9 MB total).
   The remaining vendored libraries (grpc, aiohttp, opentelemetry, ...;
   about 35 MB) are download-only dependencies and stay out of the bundle.
   `geoip_utils.get_logger` falls back to a basic logger on indexers where
   solnlib is unavailable.
 - The databases live in the app's `databases/` directory, which is not in
-  Splunk's default allowlist, so nothing there (the databases, the
-  updater's in-progress `*.temporary` downloads, its lock file) rides the
-  bundle unless allowlisted. The `geoip_mmdb` allowlist key ships as a
-  match-nothing placeholder; saving "Run on indexers" overrides it in
-  `local/distsearch.conf` (see `_apply_mmdb_replication` in
+  Splunk's default allowlist, so while the toggle is off nothing there (the
+  databases, the updater's in-progress `*.temporary` downloads, its lock
+  file) rides the bundle at all. The `geoip_mmdb` allowlist key ships as a
+  placeholder that matches no real file - deliberately not an empty value,
+  which in an allowlist matches everything. Saving "Run on indexers"
+  overrides it in `local/distsearch.conf` (see `_apply_mmdb_replication` in
   `geoip_rh_settings.py`): the real `apps/geoip/databases/*.mmdb` pattern
   when enabled, the placeholder when disabled (conf keys cannot be deleted
-  through the REST API).
+  through the REST API). With the toggle on, the scratch files stay out for
+  a different reason: pygeoipupdate names in-progress downloads
+  `<edition>_<random>.temporary`, which `*.mmdb` does not match.
 - IMPORTANT restart semantics (verified on a live cluster): splunkd only
   reads the replication allowlist/denylist at startup, so toggling the
   setting changes bundle content only after the search head restarts.

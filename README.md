@@ -182,7 +182,7 @@ of a search head cluster (requires the `sc_admin` role).
 
 Splunk ships search-time configuration to the indexers in the knowledge
 bundle. The bundle always includes the small set of libraries the `geoip`
-command needs (about 1.6 MB); enabling **Run on indexers** adds the
+command needs (about 0.9 MB); enabling **Run on indexers** adds the
 MaxMind databases to it.
 
 Bundle replication is triggered by searches: after a database downloads,

@@ -185,7 +185,8 @@ def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
     The databases live in the app's databases/ directory, which is not in
     Splunk's default knowledge bundle allowlist, so they only replicate to
     indexers through the geoip_mmdb [replicationAllowlist] key. The shipped
-    default is a placeholder pattern that matches nothing; enabling "Run on
+    default is a placeholder pattern that matches no real file (not an empty
+    value, which in an allowlist matches everything); enabling "Run on
     indexers" overrides the key in local/distsearch.conf with the real
     pattern. Conf keys cannot be deleted through the REST API, so the key
     is always written with one of the two values.
