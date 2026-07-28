@@ -1,5 +1,6 @@
 """MaxMind database lookup streaming command for Splunk."""
 
+import contextlib
 import os
 import re
 import sys
@@ -55,6 +56,14 @@ class PreparableCommand(Protocol):
     configuration: Configuration
     metadata: Metadata
 
+    def write_warning(self, message: str) -> None:
+        """Show a warning in Splunk Web and the job inspector.
+
+        The SDK calls prepare() before flushing the getinfo reply the
+        messages ride along with, so a warning written from there reaches
+        the user. Note the SDK runs str.format on the message.
+        """
+
 
 def prepare(command: PreparableCommand) -> None:
     """Decide whether this search distributes the command to the indexers.
@@ -89,13 +98,21 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
 
     Any failure means search-head-only execution: a broken settings read
     must never take the search down, and running on the search head is
-    always safe since the databases live there. Logging the failure must
-    not take it down either: get_logger reads its log level from this
-    same conf over REST, so whatever broke the settings read (splunkd
-    unreachable, expired session key) may make it raise too.
+    always safe since the databases live there. Reading the session key is
+    inside the try for the same reason - the promise is worth nothing if an
+    unexpected searchinfo kills the search on the way in. Logging the
+    failure must not take it down either: get_logger reads its log level
+    from this same conf over REST, so whatever broke the settings read
+    (splunkd unreachable, expired session key) may make it raise too.
+
+    Someone who deliberately enabled "Run on indexers" gets correct
+    results from the wrong topology here, so the reverted setting is also
+    reported to the search, where it shows up in Splunk Web and the job
+    inspector.
     """
-    session_key = command.metadata.searchinfo.session_key
+    session_key = ""
     try:
+        session_key = command.metadata.searchinfo.session_key
         value = get_run_on_indexers_setting(session_key)
     except Exception:  # any failure means don't distribute
         try:
@@ -106,6 +123,11 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
             "Failed to read the run_on_indexers setting; "
             "running on the search head only"
         )
+        with contextlib.suppress(Exception):  # never take the search down
+            command.write_warning(
+                'Could not read the geoip app\'s "Run on indexers" setting; '
+                "the geoip command ran on the search head only."
+            )
         return False
     return is_truthy(value)
 
@@ -144,7 +166,9 @@ def stream(
     database_names = [name.strip() for name in command.databases.split(",")]
     sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
     on_indexer = sid.startswith("remote_")
-    session_key = command.metadata.searchinfo.session_key
+    # Defensively, like sid above: the session key is only used for
+    # logging, so its absence must not be what fails the search.
+    session_key = str(getattr(command.metadata.searchinfo, "session_key", "") or "")
     readers = [
         _get_reader(name, session_key=session_key, on_indexer=on_indexer)
         for name in database_names

@@ -6,6 +6,7 @@ GeoIP2-Country-Test.mmdb which contains known test data.
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -490,6 +491,10 @@ class MockPreparableCommand:
         self.configuration = MockConfiguration()
         self.metadata = MockMetadata()
         self.metadata.searchinfo.sid = sid
+        self.warnings: list[str] = []
+
+    def write_warning(self, message: str) -> None:
+        self.warnings.append(message)
 
 
 @pytest.mark.parametrize(
@@ -535,6 +540,42 @@ def test_prepare_defaults_to_search_head_only_on_settings_read_failure() -> None
         geoip_command.prepare(command)
 
     logger_mock.return_value.exception.assert_called_once()
+    assert command.configuration.distributed is False
+    # The user asked for indexer execution and did not get it; a log line
+    # alone leaves them with the wrong topology and no way to know.
+    assert len(command.warnings) == 1
+    assert "Run on indexers" in command.warnings[0]
+
+
+def test_prepare_survives_searchinfo_without_a_session_key() -> None:
+    """The fallback must not depend on searchinfo having every attribute:
+    raising here would kill the search prepare() promises to protect."""
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+    command.metadata.searchinfo = SimpleNamespace(sid="1234.56789")
+
+    geoip_command.prepare(command)
+
+    assert command.configuration.distributed is False
+
+
+def test_prepare_settings_read_failure_survives_a_broken_warning_channel() -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "get_logger"),
+        patch.object(
+            command, "write_warning", side_effect=RuntimeError("no record writer")
+        ),
+    ):
+        geoip_command.prepare(command)
+
     assert command.configuration.distributed is False
 
 
