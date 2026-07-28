@@ -144,7 +144,23 @@ For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built pa
 precious lint --command appinspect geoip-1.1.0.tar.gz
 ```
 
-This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`).
+This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`). The `Lint` GitHub Actions workflow builds the package and runs this same command, so its tarball version must be kept in step with `build.sh` (`dev-bin/release.sh` updates both).
+
+`splunk-appinspect inspect` exits 0 even when checks fail - the failure count
+only shows up in the report summary it prints. The `--ci` flag in
+`.precious.toml` makes it exit 101 for failures, 104 for future failures, and
+103 for warnings instead; without `--ci`, both the local command and CI
+silently pass on any AppInspect failure. `ok-exit-codes` is `[0, 103]`
+because the vendored third-party libraries trip several warnings that cannot
+be fixed here; 101 and 104 are `lint-failure-exit-codes` (failure shown with
+the report); and appinspect's 1 (a check errored), 2 (run-time error), and
+3 (unopenable package) are deliberately in neither list - precious fails on
+any exit code it was not told about, dumping the output. Verified end to end:
+a `conf_replication_summary` key in `server.conf` turns the linter red with
+the failing check in the report. One tradeoff: precious discards output on ok
+exit codes, so a passing run shows nothing, warnings included - to read them,
+run `uv run splunk-appinspect inspect <tarball> --mode precert
+--included-tags cloud` directly.
 
 ## Key Configuration Files
 
