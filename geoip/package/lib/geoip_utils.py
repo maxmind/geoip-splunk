@@ -161,6 +161,15 @@ def migrate_legacy_databases(logger: logging.Logger) -> None:
                         legacy_path,
                     )
                 continue
+            except OSError:
+                # One unmigratable file (left root-owned by a manual copy,
+                # an immutable or SELinux bit, EMLINK, ENOSPC) is that
+                # file's problem alone. Reaching the handler below would
+                # abandon every remaining database, and since sorted() fixes
+                # the order the same file would block them on every later
+                # run as well.
+                logger.exception("Failed to migrate legacy database %s", legacy_path)
+                continue
             else:
                 logger.info("Migrated database %s to %s", legacy_path, new_path)
             legacy_path.unlink(missing_ok=True)

@@ -200,6 +200,34 @@ def test_migrate_legacy_databases_warns_when_the_destination_is_gone(
     assert (legacy_dir / "GeoIP2-ASN.mmdb").read_bytes() == b"asn"
 
 
+def test_migrate_legacy_databases_continues_past_an_unmigratable_file(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """One file that cannot be linked must not abandon the rest: sorted()
+    fixes the order, so the same file would block them on every run."""
+    import geoip_utils  # noqa: PLC0415
+
+    legacy_dir, new_dir = _set_up_migration_dirs(tmp_path, monkeypatch)
+    for name in ("A-first", "B-second", "C-third"):
+        (legacy_dir / f"{name}.mmdb").write_bytes(name.encode())
+    logger = MagicMock()
+    real_link = os.link
+
+    def link(src: str, dst: str) -> None:
+        if Path(src).name == "A-first.mmdb":
+            raise PermissionError(errno.EPERM, "Operation not permitted", src)
+        real_link(src, dst)
+
+    with patch("geoip_utils.os.link", side_effect=link):
+        geoip_utils.migrate_legacy_databases(logger)
+
+    assert (new_dir / "B-second.mmdb").read_bytes() == b"B-second"
+    assert (new_dir / "C-third.mmdb").read_bytes() == b"C-third"
+    assert (legacy_dir / "A-first.mmdb").exists()
+    logger.exception.assert_called_once()
+
+
 def test_migrate_legacy_databases_never_raises(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
