@@ -314,7 +314,17 @@ unenriched would silently produce wrong results.
 `default/server.conf` must be maintained by hand because UCC skips
 generating it when the package ships one. It replicates the app's custom
 conf files and `distsearch.conf` across search head cluster members (so the
-toggle's local override reaches all of them). It needs no
+toggle's local override reaches all of them; verified live - splunkd honours
+`conf_replication_include` for a conf type absent from its default list, and
+both `local/distsearch.conf` and `local/geoip_settings.conf` reached the
+non-captain member). `conf_replication_include.distsearch` is instance-wide,
+not app-scoped: `[shclustering]` keys from every app merge into one effective
+`server.conf`, so it enables replication of every runtime `distsearch.conf`
+change on the members, `etc/system/local` and other apps' included - which
+matters because `distsearch.conf` can carry member-specific settings
+(`[distributedSearch] servers`/`disabled`, `[replicationSettings]`,
+`[tokenExchKeys] certDir`, `genKeyScript`). There is no app-scoped
+alternative; the include list is keyed by conf name. It needs no
 `conf_replication_summary` keys - and AppInspect rejects them in an app's
 server.conf - because the `databases/` directory is outside the SHC
 replication summary entirely. That matters: members each download their own
