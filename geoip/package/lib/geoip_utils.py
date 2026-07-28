@@ -140,25 +140,7 @@ def migrate_legacy_databases(logger: logging.Logger) -> None:
                     new_path,
                 )
             except FileNotFoundError:
-                # os.link raises ENOENT for either operand. A vanished
-                # source is the benign case - a concurrent migration moved
-                # it first - but anything else (a destination directory
-                # removed since the mkdir above) would otherwise skip every
-                # database without a word.
-                if legacy_path.exists():
-                    logger.warning(
-                        "Could not migrate legacy database %s to %s: no such "
-                        "file or directory (the destination directory may be "
-                        "gone)",
-                        legacy_path,
-                        new_path,
-                    )
-                else:
-                    logger.debug(
-                        "Legacy database %s vanished; a concurrent migration "
-                        "moved it first",
-                        legacy_path,
-                    )
+                _log_migration_enoent(logger, legacy_path, new_path)
                 continue
             except OSError:
                 # One unmigratable file (left root-owned by a manual copy,
@@ -194,6 +176,32 @@ def migrate_legacy_databases(logger: logging.Logger) -> None:
             )
     except Exception:  # migration must never take down the caller
         logger.exception("Failed to migrate databases from %s", legacy_dir)
+
+
+def _log_migration_enoent(
+    logger: logging.Logger,
+    legacy_path: Path,
+    new_path: Path,
+) -> None:
+    """Log an ENOENT raised by the os.link in migrate_legacy_databases.
+
+    os.link raises ENOENT for either operand. A vanished source is the
+    benign case - a concurrent migration moved it first - but anything else
+    (a destination directory removed since the mkdir) would otherwise skip
+    every database without a word.
+    """
+    if legacy_path.exists():
+        logger.warning(
+            "Could not migrate legacy database %s to %s: no such file or "
+            "directory (the destination directory may be gone)",
+            legacy_path,
+            new_path,
+        )
+        return
+    logger.debug(
+        "Legacy database %s vanished; a concurrent migration moved it first",
+        legacy_path,
+    )
 
 
 def get_database_directory() -> Path:
