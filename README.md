@@ -164,9 +164,10 @@ To enable this, go to **Configuration > Distributed Search**, check
 **Run on indexers**, and restart the search head (every member, in a
 search head cluster). The restart is required because Splunk only reads
 the replication rules that put the databases into the knowledge bundle at
-startup. The same applies when disabling the setting - the command stops
-running on the indexers immediately, but the databases remain in the
-knowledge bundle until the next restart.
+startup. Disabling the setting takes effect immediately - the command
+stops running on the indexers right away, and the databases stay in the
+knowledge bundle until the next restart, which is only wasted bundle
+space.
 
 In a distributed deployment, `geoip` searches fail with a "Database not
 found on this indexer" error between enabling the setting and completing
@@ -193,9 +194,9 @@ which means:
 - The first search after adding a new database can fail with a "Database
   not found on this indexer" error. Retry once the bundle push
   completes - typically well under a minute.
-- Routine hourly database updates never cause this error. The indexers
-  keep using the previous version of a database until the updated bundle
-  arrives.
+- Updates to a database the indexers already have never cause this error.
+  The indexers keep using the previous version of a database until the
+  updated bundle arrives.
 
 Searches that never touch the indexers (for example, plain
 `| makeresults`) do not trigger a bundle push.
