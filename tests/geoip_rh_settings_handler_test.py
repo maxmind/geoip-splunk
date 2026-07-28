@@ -78,6 +78,7 @@ from geoip_utils import (  # noqa: E402
     MMDB_ALLOW_NOTHING_PATTERN,
     MMDB_ALLOW_PATTERN,
     MMDB_ALLOWLIST_KEY,
+    REPLICATION_ALLOWLIST_STANZA,
     RUN_ON_INDEXERS_FIELD,
 )
 
@@ -110,7 +111,7 @@ def test_apply_mmdb_replication_enabled_writes_allow_pattern() -> None:
         manager.assert_called_once_with("test_session_key", "geoip")
         manager.return_value.get_conf.assert_called_once_with("distsearch")
         conf.update.assert_called_once_with(
-            "replicationAllowlist",
+            REPLICATION_ALLOWLIST_STANZA,
             {MMDB_ALLOWLIST_KEY: MMDB_ALLOW_PATTERN},
         )
 
@@ -124,7 +125,7 @@ def test_apply_mmdb_replication_disabled_restores_allow_nothing_pattern() -> Non
         )
 
         conf.update.assert_called_once_with(
-            "replicationAllowlist",
+            REPLICATION_ALLOWLIST_STANZA,
             {MMDB_ALLOWLIST_KEY: MMDB_ALLOW_NOTHING_PATTERN},
         )
 

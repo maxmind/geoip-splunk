@@ -26,6 +26,13 @@ CONF_NAME = f"{APP_NAME}_settings"
 # geoip_rh_settings.py).
 MMDB_ALLOWLIST_KEY = "geoip_mmdb"
 
+# The distsearch.conf stanza both the shipped default and the override live
+# in. Shared so the handler, the shipped conf, and their tests cannot drift:
+# a rename that reaches only some of them would put the override in a stanza
+# splunkd ignores, leaving the placeholder effective while the setting reads
+# as enabled - the state every geoip search fails in.
+REPLICATION_ALLOWLIST_STANZA = "replicationAllowlist"
+
 # Allow pattern: databases ride the bundle (indexer execution on).
 MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
 

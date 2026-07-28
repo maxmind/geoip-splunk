@@ -26,7 +26,7 @@ def _load() -> configparser.ConfigParser:
 def test_mmdb_key_defaults_to_the_allow_nothing_pattern() -> None:
     """Indexer execution is opt-in: the shipped default must not let the
     databases ride the knowledge bundle."""
-    allowlist = _load()["replicationAllowlist"]
+    allowlist = _load()[geoip_utils.REPLICATION_ALLOWLIST_STANZA]
     assert (
         allowlist[geoip_utils.MMDB_ALLOWLIST_KEY]
         == geoip_utils.MMDB_ALLOW_NOTHING_PATTERN
@@ -54,7 +54,7 @@ def test_allowlist_covers_the_runtime_libs_and_toggle_key_only() -> None:
     dependencies (grpc, aiohttp, opentelemetry, ...) out of the knowledge
     bundle.
     """
-    allowlist = _load()["replicationAllowlist"]
+    allowlist = _load()[geoip_utils.REPLICATION_ALLOWLIST_STANZA]
     assert dict(allowlist) == {
         "geoip_lib_geoip_utils": "apps/geoip/lib/geoip_utils.py",
         "geoip_lib_splunklib": "apps/geoip/lib/splunklib/...",

@@ -30,6 +30,7 @@ from geoip_utils import (
     MMDB_ALLOW_NOTHING_PATTERN,
     MMDB_ALLOW_PATTERN,
     MMDB_ALLOWLIST_KEY,
+    REPLICATION_ALLOWLIST_STANZA,
     RUN_ON_INDEXERS_FIELD,
     SETTINGS_FIELD_SPECS,
     get_logger,
@@ -192,7 +193,10 @@ def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
     pattern = MMDB_ALLOW_PATTERN if run_on_indexers else MMDB_ALLOW_NOTHING_PATTERN
     try:
         conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf("distsearch")
-        conf.update("replicationAllowlist", {MMDB_ALLOWLIST_KEY: pattern})
+        # ConfFile.update reads the stanza first and only creates it on an
+        # HTTP 404, so the [replicationAllowlist] stanza the app ships in
+        # default/distsearch.conf is what makes this resolve at all.
+        conf.update(REPLICATION_ALLOWLIST_STANZA, {MMDB_ALLOWLIST_KEY: pattern})
     except Exception as e:
         get_logger(session_key).exception(
             "Failed to update the distsearch.conf replication allowlist"
