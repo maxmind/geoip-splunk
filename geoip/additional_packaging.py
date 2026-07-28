@@ -1,4 +1,11 @@
-"""Post-build hook for UCC framework to copy files from repo root."""
+"""Post-build hook for UCC framework to copy files from repo root.
+
+Keep the imports here stdlib-only. UCC calls this hook inside a
+"try: ... except ImportError" (ucc_framework/commands/build.py), so an
+ImportError raised transitively from in here is swallowed with an INFO log
+and the build still exits 0 with the rewrite below silently skipped.
+build.sh verifies the rewrite afterwards, outside that try, as a backstop.
+"""
 
 import shutil
 from pathlib import Path
