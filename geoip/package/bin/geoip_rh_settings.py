@@ -130,21 +130,19 @@ class GeoipSettingsHandler(AdminExternalHandler):
             trigger_background_update(self.getSessionKey())
 
     def handleCreate(self, confInfo: ConfInfo) -> None:
-        """Handle initial settings creation."""
+        """Handle initial settings creation.
+
+        UCC generates handleractions = edit, list for this endpoint, so
+        Splunk never dispatches create here in practice (all three stanzas
+        ship in default/geoip_settings.conf). Kept as a safety net in case
+        that changes; handleEdit is the path that actually runs.
+        """
         if self.callerArgs.id == DISTRIBUTION_STANZA:
             self._save_distribution(confInfo, AdminExternalHandler.handleCreate)
             return
         AdminExternalHandler.handleCreate(self, confInfo)
         if self.callerArgs.id == "account":
             trigger_background_update(self.getSessionKey())
-
-    def handleRemove(self, confInfo: ConfInfo) -> None:
-        """Handle settings removal."""
-        AdminExternalHandler.handleRemove(self, confInfo)
-        if self.callerArgs.id == DISTRIBUTION_STANZA:
-            # Removing the stanza reverts run_on_indexers to its default
-            # of 0, so restore the allow-nothing pattern to match.
-            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=False)
 
     def _save_distribution(
         self,

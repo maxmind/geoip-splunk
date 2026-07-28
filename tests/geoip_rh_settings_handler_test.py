@@ -55,9 +55,6 @@ class FakeAdminExternalHandler:
     def handleCreate(self, confInfo: object) -> None:
         pass
 
-    def handleRemove(self, confInfo: object) -> None:
-        pass
-
 
 mock_rest_handler = MagicMock()
 mock_rest_handler.admin_external = mock_admin_external
@@ -202,16 +199,19 @@ def test_handle_edit_enable_does_not_save_when_distsearch_write_fails() -> None:
     save_mock.assert_not_called()
 
 
-def test_handle_create_disable_saves_before_writing_distsearch() -> None:
+def test_handle_edit_disable_saves_before_writing_distsearch() -> None:
     """Disabling is the opposite order: a failed distsearch write then
-    leaves only extra replication, not broken searches."""
+    leaves only extra replication, not broken searches.
+
+    Through handleEdit, since that is the only action UCC generates for
+    this endpoint (handleractions = edit, list)."""
     handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["0"]})
     order = MagicMock()
     with (
         patch.object(geoip_rh_settings, "_apply_mmdb_replication", order.apply),
-        patch.object(FakeAdminExternalHandler, "handleCreate", order.save),
+        patch.object(FakeAdminExternalHandler, "handleEdit", order.save),
     ):
-        handler.handleCreate(MagicMock())
+        handler.handleEdit(MagicMock())
 
     assert [name for name, _, _ in order.mock_calls] == ["save", "apply"]
     order.apply.assert_called_once_with("test_session_key", run_on_indexers=False)
@@ -227,11 +227,3 @@ def test_handle_edit_account_does_not_touch_distsearch() -> None:
 
     apply_mock.assert_not_called()
     update_mock.assert_called_once_with("test_session_key")
-
-
-def test_handle_remove_distribution_restores_allow_nothing_pattern() -> None:
-    handler = _make_handler(DISTRIBUTION_STANZA, {})
-    with patch.object(geoip_rh_settings, "_apply_mmdb_replication") as apply_mock:
-        handler.handleRemove(MagicMock())
-
-    apply_mock.assert_called_once_with("test_session_key", run_on_indexers=False)
