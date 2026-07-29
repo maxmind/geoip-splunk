@@ -240,8 +240,9 @@ getinfo response, not `commands.conf`. The Splunk SDK defaults to reporting
 distributable streaming (`type = streaming`); `distributed=False` makes it
 report `type = stateful` (search-head-only, the built-in equivalent of
 `| localop`). You cannot set `type = stateful` directly in the decorator -
-the SDK constrains a settable `type` to events/reporting/streaming and only
-reaches `stateful` via `distributed=False`.
+`StreamingCommand` declares `type` read-only at `streaming`, and the SDK
+rewrites it to `stateful` only as it emits the metadata, only when
+`distributed` is false.
 
 Distribution is decided per search by `prepare()` in `geoip_command.py`,
 which the SDK calls before writing the getinfo reply:
