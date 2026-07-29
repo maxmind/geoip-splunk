@@ -57,6 +57,11 @@ ignore = [
     # SLF001: Private member access - needed to test private functions
     "SLF001",
 ]
+"tests/geoip_rh_settings_handler_test.py" = [
+    # N802, N803: camelCase method/arg names mirror Splunk's AdminExternalHandler API
+    "N802",
+    "N803",
+]
 "geoip/package/bin/geoip_handler.py" = [
     # BLE001: Blind exception catch is intentional - background thread safety net
     "BLE001",

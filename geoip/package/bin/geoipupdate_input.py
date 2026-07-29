@@ -20,6 +20,7 @@ from geoip_utils import (
     get_database_directory,
     get_fallback_logger,
     get_logger,
+    migrate_legacy_databases,
 )
 from pygeoipupdate import Config, Updater
 from pygeoipupdate.errors import GeoIPUpdateError
@@ -84,6 +85,10 @@ def run_database_update(session_key: str) -> None:
 
     """
     logger = get_logger(session_key)
+
+    # Before the configuration checks: databases left in the pre-1.2.0
+    # location should move even while the input is unconfigured.
+    migrate_legacy_databases(logger)
 
     try:
         account_id, license_key = _get_account_credentials(session_key)

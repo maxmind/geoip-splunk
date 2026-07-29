@@ -51,7 +51,7 @@ Common databases:
 ### Database Updates
 
 Databases are checked for updates every hour and stored in the app's
-`local/data/` directory. They are preserved across upgrades.
+`databases/` directory. They are preserved across upgrades.
 
 In Search Head Cluster environments, each member downloads its own databases
 independently.
@@ -153,6 +153,65 @@ This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.
 
 All MaxMind databases are supported. Make sure the database name in your
 search matches the name configured in the Databases tab.
+
+## Running on Indexers
+
+By default, the `geoip` command runs only on the search head. You can
+optionally run it on the indexers, which lets Splunk enrich events where
+they are stored instead of first sending them to the search head.
+
+To enable this, go to **Configuration > Distributed Search**, check
+**Run on indexers**, and restart the search head (every member, in a
+search head cluster). The restart is required because Splunk only reads
+the replication rules that put the databases into the knowledge bundle at
+startup. Disabling the setting takes effect immediately - the command
+stops running on the indexers right away, and the databases stay in the
+knowledge bundle until the next restart, which is only wasted bundle
+space.
+
+In a distributed deployment, `geoip` searches fail with a "Database not
+found on this indexer" error between enabling the setting and completing
+the restart: the command starts distributing immediately, but the
+databases cannot enter the knowledge bundle until the restart. On a single
+instance with no search peers there is nothing to distribute to, so
+nothing changes and nothing fails. On Splunk Cloud, restart the search heads
+yourself with the Admin Config Service (ACS) API: its `restart-now`
+endpoint restarts a standalone search head or performs a rolling restart
+of a search head cluster (requires the `sc_admin` role).
+
+### How Replication Works
+
+Splunk ships search-time configuration to the indexers in the knowledge
+bundle. The bundle always includes the small set of libraries the `geoip`
+command needs (about 0.9 MB); enabling **Run on indexers** adds the
+MaxMind databases to it.
+
+Bundle replication is triggered by searches: after a database downloads,
+the next search dispatched to the indexers pushes an updated bundle. That
+same search still runs against the bundle the indexers already have,
+which means:
+
+- The first search after adding a new database can fail with a "Database
+  not found on this indexer" error. Retry once the bundle push
+  completes - typically well under a minute.
+- Updates to a database the indexers already have never cause this error.
+  The indexers keep using the previous version of a database until the
+  updated bundle arrives.
+
+Searches that never touch the indexers (for example, plain
+`| makeresults`) do not trigger a bundle push.
+
+### Bundle Size Limits
+
+The databases are copied to every indexer in the knowledge bundle, so large
+databases increase the bundle size significantly. Splunk limits bundle size
+(`maxBundleSize`, default 2048 MB) and logs warnings well before that;
+Splunk Cloud enforces a hard limit (3 GB at the time of writing), beyond
+which the bundle is not pushed and the indexers keep using the previous one
+(see the service limits table in "Splunk Cloud Platform Service Details" on
+the Splunk help site). If bundle size is a problem, leave **Run on
+indexers** disabled: the databases then stay out of the knowledge bundle
+entirely and the command runs only on the search head.
 
 ## Incompatibility Notice
 

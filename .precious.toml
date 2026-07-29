@@ -35,5 +35,18 @@ cmd = [
     "--included-tags", "cloud",
     # CRITICAL: Suppress info/warning log messages, only show check results
     "--log-level", "CRITICAL",
+    # Without --ci, appinspect exits 0 even when checks fail, so failures are
+    # only visible in the report summary it prints. With it, the exit code is
+    # 101 for failures, 104 for future failures, and 103 for warnings (in that
+    # order of priority).
+    "--ci",
 ]
-ok-exit-codes = 0
+# 103 (warnings only) is expected: the vendored third-party libraries trip
+# several unfixable warnings. Precious discards output on ok exit codes, so a
+# passing run does not show the warnings; run splunk-appinspect directly to
+# read them (see CLAUDE.md). 101 and 104 are real lint failures, shown with
+# the report. Appinspect's other exit codes - 1 (a check errored), 2 (run-time
+# error), 3 (unopenable package) - are deliberately in neither list: precious
+# fails on any exit code it was not told about, dumping the output.
+ok-exit-codes = [0, 103]
+lint-failure-exit-codes = [101, 104]

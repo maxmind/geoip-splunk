@@ -1,5 +1,6 @@
 """MaxMind database lookup streaming command for Splunk."""
 
+import contextlib
 import os
 import re
 import sys
@@ -10,7 +11,14 @@ from typing import Any, Protocol
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
-from geoip_utils import get_database_directory, get_logger
+from geoip_utils import (
+    get_database_directory,
+    get_fallback_logger,
+    get_logger,
+    get_run_on_indexers_setting,
+    is_truthy,
+    migrate_legacy_databases,
+)
 
 
 class SearchInfo(Protocol):
@@ -18,6 +26,7 @@ class SearchInfo(Protocol):
 
     app: str
     session_key: str
+    sid: str
 
 
 class Metadata(Protocol):
@@ -33,6 +42,94 @@ class Command(Protocol):
     field: str
     prefix: str
     metadata: Metadata
+
+
+class Configuration(Protocol):
+    """Protocol for the command's runtime configuration settings."""
+
+    distributed: bool
+
+
+class PreparableCommand(Protocol):
+    """Protocol for the wrapper command object passed to prepare()."""
+
+    configuration: Configuration
+    metadata: Metadata
+
+    def write_warning(self, message: str) -> None:
+        """Show a warning in Splunk Web and the job inspector.
+
+        The SDK calls prepare() before flushing the getinfo reply the
+        messages ride along with, so a warning written from there reaches
+        the user. Note the SDK runs str.format on the message.
+        """
+
+
+def prepare(command: PreparableCommand) -> None:
+    """Decide whether this search distributes the command to the indexers.
+
+    The generated wrapper (bin/geoip.py) calls this from its prepare()
+    method, which the Splunk SDK runs before writing the getinfo reply -
+    the reply that tells Splunk whether the command is distributable
+    streaming (distributed=True) or search-head-only (distributed=False,
+    reported as type=stateful).
+
+    On the search head, the "Run on indexers" setting decides. On an
+    indexer the search head has already made the decision, so report
+    distributed streaming and never touch REST: the app's conf endpoints
+    do not exist there. Indexer invocations are identified by the remote_
+    prefix Splunk puts on their search id.
+    """
+    sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
+    if sid.startswith("remote_"):
+        command.configuration.distributed = True
+        return
+    command.configuration.distributed = _indexer_execution_enabled(command)
+
+
+def _indexer_execution_enabled(command: PreparableCommand) -> bool:
+    """Read the "Run on indexers" setting from geoip_settings.conf.
+
+    The read goes through solnlib pinned to the geoip app's namespace
+    (get_run_on_indexers_setting) rather than through command.service,
+    which the SDK namespaces to the app the search was dispatched from -
+    a read from there resolves the conf only via the app's
+    export = system metadata.
+
+    Any failure means search-head-only execution: a broken settings read
+    must never take the search down, and running on the search head is
+    always safe since the databases live there. Reading the session key is
+    inside the try for the same reason - the promise is worth nothing if an
+    unexpected searchinfo kills the search on the way in. Logging the
+    failure must not take it down either: get_logger reads its log level
+    from this same conf over REST, so whatever broke the settings read
+    (splunkd unreachable, expired session key) may make it raise too.
+
+    Someone who deliberately enabled "Run on indexers" gets correct
+    results from the wrong topology here, so the reverted setting is also
+    reported to the search, where it shows up in Splunk Web and the job
+    inspector.
+    """
+    session_key = ""
+    try:
+        session_key = command.metadata.searchinfo.session_key
+        value = get_run_on_indexers_setting(session_key)
+    except Exception:  # any failure means don't distribute
+        try:
+            logger = get_logger(session_key)
+        except Exception:  # noqa: BLE001 - see the docstring
+            logger = get_fallback_logger()
+        logger.exception(
+            "Failed to read the run_on_indexers setting; "
+            "running on the search head only"
+        )
+        with contextlib.suppress(Exception):  # never take the search down
+            command.write_warning(
+                'Could not read the geoip app\'s "Run on indexers" setting; '
+                "the geoip command ran on the search head only."
+            )
+        return False
+    return is_truthy(value)
 
 
 def stream(
@@ -67,10 +164,17 @@ def stream(
 
     """
     database_names = [name.strip() for name in command.databases.split(",")]
-    readers = [_get_reader(name) for name in database_names]
+    sid = str(getattr(command.metadata.searchinfo, "sid", "") or "")
+    on_indexer = sid.startswith("remote_")
+    # Defensively, like sid above: the session key is only used for
+    # logging, so its absence must not be what fails the search.
+    session_key = str(getattr(command.metadata.searchinfo, "session_key", "") or "")
+    readers = [
+        _get_reader(name, session_key=session_key, on_indexer=on_indexer)
+        for name in database_names
+    ]
     field = command.field
     prefix = command.prefix
-    session_key = command.metadata.searchinfo.session_key
 
     for event in events:
         ip_address = event.get(field)
@@ -139,11 +243,16 @@ _readers: dict[str, maxminddb.Reader] = {}
 _VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _get_reader(name: str) -> maxminddb.Reader:
+def _get_reader(
+    name: str, *, session_key: str, on_indexer: bool = False
+) -> maxminddb.Reader:
     """Get a database reader, opening it if not already cached.
 
     Args:
         name: The database name (e.g., 'GeoIP2-Country')
+        session_key: Splunk session key, for logging
+        on_indexer: Whether the command is running on an indexer, for a
+            tailored error message when the database is missing
 
     Returns:
         The maxminddb.Reader for the database
@@ -159,8 +268,31 @@ def _get_reader(name: str) -> maxminddb.Reader:
     if name not in _readers:
         db_dir = get_database_directory()
         db_path = db_dir / f"{name}.mmdb"
+        if not db_path.exists() and not on_indexer:
+            # After an upgrade the database may still be in the
+            # pre-1.2.0 location. Never on an indexer: the app runs from
+            # the knowledge bundle there and has no legacy directory.
+            migrate_legacy_databases(get_logger(session_key))
         if not db_path.exists():
-            msg = f"Database not found: {db_path}"
+            if on_indexer:
+                msg = (
+                    f"Database not found on this indexer: {name}.mmdb. "
+                    "Check the database name (case-sensitive) against the "
+                    "GeoIP app configuration page. If it is correct, the "
+                    "database is missing from the knowledge bundle: retry "
+                    "shortly if it was added recently, restart the search "
+                    'head if "Run on indexers" was enabled since its last '
+                    "restart, and otherwise see the app README for bundle "
+                    "size limits and troubleshooting."
+                )
+            else:
+                msg = (
+                    f"Database not found: {db_path}. Check the database "
+                    "name (case-sensitive) against the GeoIP app "
+                    "configuration page; add it there if needed and allow "
+                    "the download to complete (downloads run on save, "
+                    "then hourly)."
+                )
             raise FileNotFoundError(msg)
         _readers[name] = maxminddb.open_database(str(db_path))
     return _readers[name]

@@ -4,13 +4,18 @@ Uses test data from the MaxMind-DB submodule. Test IPs are from
 GeoIP2-Country-Test.mmdb which contains known test data.
 """
 
+import shutil
+from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import geoip_command
 import pytest
 
 if TYPE_CHECKING:
-    from geoip_command import Metadata, SearchInfo
+    from _pytest.monkeypatch import MonkeyPatch
+    from geoip_command import Configuration, Metadata, SearchInfo
 
 
 class MockSearchInfo:
@@ -18,6 +23,7 @@ class MockSearchInfo:
 
     app: str = "geoip"
     session_key: str = "test_session_key"
+    sid: str = "1234.56789"
 
 
 class MockMetadata:
@@ -327,6 +333,77 @@ def test_database_not_found() -> None:
         list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
 
 
+def test_database_not_found_search_head_message() -> None:
+    """The search head message points at the app configuration page."""
+    command = MockCommand(databases="NonExistent-Database")
+
+    with pytest.raises(FileNotFoundError, match="GeoIP app configuration page"):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_database_not_found_on_indexer_message() -> None:
+    """The indexer message suggests checking the database name before
+    the bundle remedies: a mistyped databases= value lands here too, so
+    a missing file does not imply a replication problem."""
+    command = MockCommand(databases="NonExistent-Database")
+    command.metadata.searchinfo.sid = "remote_sh1_1234.56789"
+
+    with pytest.raises(
+        FileNotFoundError,
+        match=r"not found on this indexer.*Check the database name",
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+
+def test_stream_migrates_database_from_legacy_location(
+    tmp_path: "Path",
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    """The first search after an upgrade finds databases still in the
+    pre-1.2.0 local/data location and moves them instead of failing."""
+    legacy_dir = tmp_path / "splunk" / "etc" / "apps" / "geoip" / "local" / "data"
+    legacy_dir.mkdir(parents=True)
+    test_db = Path(__file__).parent / "data" / "test-data" / "GeoIP2-Country-Test.mmdb"
+    shutil.copy(test_db, legacy_dir / "Legacy-Migration-Test.mmdb")
+    monkeypatch.setenv("SPLUNK_HOME", str(tmp_path / "splunk"))
+    new_dir = tmp_path / "databases"
+    monkeypatch.setenv("MAXMIND_DB_DIR", str(new_dir))
+    command = MockCommand(databases="Legacy-Migration-Test")
+
+    results = list(geoip_command.stream(command, iter([{"ip": "214.78.120.1"}])))
+
+    assert results[0]["country.iso_code"] == "US"
+    assert (new_dir / "Legacy-Migration-Test.mmdb").exists()
+    assert not legacy_dir.exists()
+
+
+def test_database_not_found_attempts_migration() -> None:
+    command = MockCommand(databases="NonExistent-Database")
+
+    with (
+        patch.object(geoip_command, "migrate_legacy_databases") as migrate_mock,
+        pytest.raises(FileNotFoundError),
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+    migrate_mock.assert_called_once()
+
+
+def test_database_not_found_on_indexer_does_not_migrate() -> None:
+    """No legacy directory exists on an indexer, where the app runs from
+    the knowledge bundle; the command must not try to migrate there."""
+    command = MockCommand(databases="NonExistent-Database")
+    command.metadata.searchinfo.sid = "remote_sh1_1234.56789"
+
+    with (
+        patch.object(geoip_command, "migrate_legacy_databases") as migrate_mock,
+        pytest.raises(FileNotFoundError),
+    ):
+        list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
+
+    migrate_mock.assert_not_called()
+
+
 def test_invalid_database_name() -> None:
     """Test that invalid database names are rejected."""
     command = MockCommand(databases="../etc/passwd")
@@ -396,3 +473,146 @@ def test_subdivisions_flattened() -> None:
     # Last subdivision is also available at -1
     assert result["subdivisions.-1.iso_code"] == "E"
     assert result["subdivisions.-1.names.en"] == "Östergötland County"
+
+
+class MockConfiguration:
+    """Mock command configuration settings."""
+
+    distributed: bool = True
+
+
+class MockPreparableCommand:
+    """Mock wrapper command object passed to prepare()."""
+
+    configuration: "Configuration"
+    metadata: "Metadata"
+
+    def __init__(self, sid: str) -> None:
+        self.configuration = MockConfiguration()
+        self.metadata = MockMetadata()
+        self.metadata.searchinfo.sid = sid
+        self.warnings: list[str] = []
+
+    def write_warning(self, message: str) -> None:
+        self.warnings.append(message)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("1", True),
+        (1, True),
+        ("true", True),
+        ("0", False),
+        (0, False),
+        ("false", False),
+        (None, False),
+    ],
+)
+def test_prepare_sets_distributed_from_setting(
+    value: object,
+    expected: bool,  # noqa: FBT001
+) -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = not expected
+
+    with patch.object(
+        geoip_command, "get_run_on_indexers_setting", return_value=value
+    ) as read_mock:
+        geoip_command.prepare(command)
+
+    read_mock.assert_called_once_with("test_session_key")
+    assert command.configuration.distributed is expected
+
+
+def test_prepare_defaults_to_search_head_only_on_settings_read_failure() -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "get_logger") as logger_mock,
+    ):
+        geoip_command.prepare(command)
+
+    logger_mock.return_value.exception.assert_called_once()
+    assert command.configuration.distributed is False
+    # The user asked for indexer execution and did not get it; a log line
+    # alone leaves them with the wrong topology and no way to know.
+    assert len(command.warnings) == 1
+    assert "Run on indexers" in command.warnings[0]
+
+
+def test_prepare_survives_searchinfo_without_a_session_key() -> None:
+    """The fallback must not depend on searchinfo having every attribute:
+    raising here would kill the search prepare() promises to protect."""
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+    command.metadata.searchinfo = SimpleNamespace(sid="1234.56789")
+
+    geoip_command.prepare(command)
+
+    assert command.configuration.distributed is False
+
+
+def test_prepare_settings_read_failure_survives_a_broken_warning_channel() -> None:
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "get_logger"),
+        patch.object(
+            command, "write_warning", side_effect=RuntimeError("no record writer")
+        ),
+    ):
+        geoip_command.prepare(command)
+
+    assert command.configuration.distributed is False
+
+
+def test_prepare_settings_read_failure_survives_a_broken_logger() -> None:
+    """get_logger reads its log level from the same conf over REST, so
+    whatever broke the settings read may break it too - the fallback to
+    search-head-only must not depend on it."""
+    command = MockPreparableCommand(sid="1234.56789")
+    command.configuration.distributed = True
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(
+            geoip_command,
+            "get_logger",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+    ):
+        geoip_command.prepare(command)
+
+    assert command.configuration.distributed is False
+
+
+def test_prepare_on_indexer_reports_distributed_and_never_touches_rest() -> None:
+    command = MockPreparableCommand(sid="remote_sh1_1234.56789")
+    command.configuration.distributed = False
+
+    with patch.object(
+        geoip_command,
+        "get_run_on_indexers_setting",
+        side_effect=AssertionError("prepare() must not touch REST on an indexer"),
+    ) as read_mock:
+        geoip_command.prepare(command)
+
+    read_mock.assert_not_called()
+    assert command.configuration.distributed is True

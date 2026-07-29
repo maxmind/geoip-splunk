@@ -24,15 +24,19 @@ Behavior:
 - The `network` field contains the most specific (smallest) CIDR block across all databases
 - Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
 - Events with missing, empty, invalid, or not-found IPs pass through unchanged
+- Runs on the search head by default; optionally on the indexers via the
+  "Run on indexers" setting (see "Command distribution" below)
 
 End-user documentation is in `README.md` (copied into the package by `additional_packaging.py`).
 
 ### Command Architecture
 
-The command implementation in `geoip_command.py` exposes a `stream(command, events)` function that the UCC-generated wrapper calls. The `command` parameter follows a `Protocol` with:
+The command implementation in `geoip_command.py` exposes `stream(command, events)` and `prepare(command)` functions that the UCC-generated wrapper calls (the wrapper's `prepare()` is injected by `additional_packaging.py`). The `command` parameter follows a `Protocol` with:
 - `databases`, `field`, `prefix` - command arguments
 - `metadata.searchinfo.session_key` - Splunk session key for API calls (e.g., reading settings)
 - `metadata.searchinfo.app` - the app name
+- `metadata.searchinfo.sid` - the search id (a `remote_` prefix identifies indexer invocations)
+- `configuration.distributed` (prepare() only) - the SDK's runtime configuration
 
 Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
@@ -43,12 +47,35 @@ Database readers are cached at module level in `_readers`. This means:
 
 ### Storage Location
 
-Databases are stored at `$SPLUNK_HOME/etc/apps/geoip/local/data/`:
-- The `/local/` directory is preserved across app upgrades
-- Apps can write to their own `/local/` directory in both Enterprise and Cloud
-- The `/data/` subdirectory keeps databases separate from .conf files
+Databases are stored in the app's `databases/` directory, resolved relative to
+`lib/geoip_utils.py` (not via `$SPLUNK_HOME`):
+- A custom app-level directory is outside search head cluster conf
+  replication summaries (which capture only `local/...`, `lookups/*`, and
+  metadata) and outside Splunk's default knowledge bundle allowlist (app
+  `bin/` and `lookups/`), so whether the databases replicate anywhere is
+  controlled entirely by the app's own `distsearch.conf` allowlist entry -
+  and no `conf_replication_summary` excludelist in `server.conf`, which
+  AppInspect rejects, is needed to keep them out of SHC baselines
+- The relative resolution works both when the app is installed
+  (`etc/apps/geoip/`) and when it runs from a knowledge bundle on an indexer
+  (`var/run/searchpeers/<bundle>/apps/geoip/`)
 
 For testing, set the `MAXMIND_DB_DIR` environment variable to override the database directory.
+
+### Migration from the pre-1.2.0 location
+
+`migrate_legacy_databases` (geoip_utils.py) moves anything left in the old
+location (`local/data/`, resolved via `$SPLUNK_HOME`) into `databases/`. It
+runs at the start of every updater run (even unconfigured) and when the
+command misses a database on the search head - never on an indexer, where
+the app runs from the knowledge bundle. Once the old directory is gone it
+is a single `stat()` no-op. The move is link-then-unlink, which never
+overwrites: a file already in `databases/` is a fresher download, so the
+legacy copy is just deleted. It also never raises - searches and update
+runs must survive a failed migration. Residual gap: on Splunk Cloud
+Victoria only one SHC member runs the input (GitHub #76), so a member that
+neither runs the input nor serves a `geoip` search keeps its legacy files
+indefinitely.
 
 ### Automatic Updates
 
@@ -82,7 +109,7 @@ The app depends on the `pygeoipupdate` PyPI package (listed in `package/lib/requ
 ```bash
 # Setup environment
 mise install                      # Install uv, precious
-uv sync                           # Install build dependencies
+uv sync --group lint              # Install build and lint dependencies
 git submodule update --init       # Initialize test data submodule
 
 # Build the app
@@ -105,54 +132,9 @@ splunk install app /path/to/geoip-1.1.0.tar.gz
 splunk install app /path/to/geoip-1.1.0.tar.gz -update true  # Update existing
 ```
 
-## Project Structure
-
-```
-CHANGELOG.md                  # Release history
-.github/
-├── dependabot.yml            # Automated dependency updates
-└── workflows/
-    ├── codeql-analysis.yml   # CodeQL security scanning
-    ├── lint.yml              # Formatting, linting, and AppInspect
-    ├── test.yml              # pytest on Ubuntu
-    └── zizmor.yml            # GitHub Actions security audit
-geoip/
-├── globalConfig.json         # Main configuration file for UCC framework
-├── additional_packaging.py   # UCC post-build hook (copies licenses/README)
-├── package/
-│   ├── app.manifest          # App metadata (author, version, description)
-│   ├── README.md             # End-user documentation (included in package)
-│   ├── LICENSES/             # License files included in package
-│   ├── default/
-│   │   ├── app.conf          # Splunk app configuration (merged with generated)
-│   │   ├── commands.conf     # Search command configuration (replaces generated)
-│   │   └── inputs.conf       # Modular input configuration (replaces generated)
-│   ├── bin/                  # Python scripts (inputs, custom commands)
-│   │   ├── geoip_command.py       # The geoip search command
-│   │   ├── geoip_handler.py       # Custom REST handler for databases tab
-│   │   ├── geoip_rh_settings.py   # Custom REST handler for account/logging
-│   │   └── geoipupdate_input.py   # Database update modular input
-│   ├── lib/
-│   │   ├── geoip_utils.py   # Shared utilities (logging, paths, constants)
-│   │   └── requirements.txt  # Python dependencies for the app
-│   └── static/               # Icons and images
-```
-
 ## Tests
 
 Tests live in `tests/` and use pytest. Test data comes from the `MaxMind-DB` git submodule at `tests/data/`.
-
-```
-tests/
-├── conftest.py                  # Sets MAXMIND_DB_DIR to test database directory
-├── data/                        # MaxMind-DB submodule (git submodule)
-│   └── test-data/               # Contains test .mmdb files
-├── geoip_command_test.py        # Tests using various test databases
-├── geoip_handler_test.py        # Tests for REST handler (databases tab)
-├── geoip_rh_settings_test.py    # Tests for REST handler (account/logging)
-├── geoip_utils_test.py          # Tests for shared utility functions
-└── geoipupdate_input_test.py    # Tests for database update functionality
-```
 
 The `MAXMIND_DB_DIR` environment variable overrides the database directory, allowing tests to use test databases from the MaxMind-DB submodule instead of production databases.
 
@@ -177,14 +159,30 @@ For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built pa
 precious lint --command appinspect geoip-1.1.0.tar.gz
 ```
 
-This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`).
+This runs AppInspect with the `cloud` tag to check for Splunk Cloud deployment requirements. The tarball is gitignored, so this must be run explicitly after building (not included in `precious lint -g`). The `Lint` GitHub Actions workflow builds the package and runs this same command, so its tarball version must be kept in step with `build.sh` (`dev-bin/release.sh` updates both).
+
+`splunk-appinspect inspect` exits 0 even when checks fail - the failure count
+only shows up in the report summary it prints. The `--ci` flag in
+`.precious.toml` makes it exit 101 for failures, 104 for future failures, and
+103 for warnings instead; without `--ci`, both the local command and CI
+silently pass on any AppInspect failure. `ok-exit-codes` is `[0, 103]`
+because the vendored third-party libraries trip several warnings that cannot
+be fixed here; 101 and 104 are `lint-failure-exit-codes` (failure shown with
+the report); and appinspect's 1 (a check errored), 2 (run-time error), and
+3 (unopenable package) are deliberately in neither list - precious fails on
+any exit code it was not told about, dumping the output. Verified end to end:
+a `conf_replication_summary` key in `server.conf` turns the linter red with
+the failing check in the report. One tradeoff: precious discards output on ok
+exit codes, so a passing run shows nothing, warnings included - to read them,
+run `uv run splunk-appinspect inspect <tarball> --mode precert
+--included-tags cloud` directly.
 
 ## Key Configuration Files
 
 ### globalConfig.json
 
 The main UCC configuration file. Defines:
-- Configuration tabs (accounts, databases, logging)
+- Configuration tabs (account, databases, distribution, logging)
 - Custom search commands (use `defaultValue` not `default` for argument defaults)
 - UI settings
 
@@ -192,36 +190,12 @@ The main UCC configuration file. Defines:
 
 Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or **single-instance forms**:
 
-**Multi-instance table** (for multiple accounts/configurations):
-```json
-{
-    "name": "account",
-    "table": {
-        "actions": ["edit", "delete", "clone"],
-        "header": [{"label": "Name", "field": "name"}]
-    },
-    "entity": [
-        {"field": "name", "required": true, ...},
-        {"field": "api_key", "encrypted": true, ...}
-    ],
-    "title": "Accounts"
-}
-```
+**Multi-instance table** (for multiple accounts/configurations, e.g. the databases tab):
 - Has `table` property with actions and header columns
 - Requires a `name` field to identify each instance
 - UI shows a table with add/edit/delete actions
 
-**Single-instance form** (for one set of settings):
-```json
-{
-    "name": "account",
-    "entity": [
-        {"field": "account_id", "encrypted": true, ...},
-        {"field": "license_key", "encrypted": true, ...}
-    ],
-    "title": "MaxMind Account"
-}
-```
+**Single-instance form** (for one set of settings, e.g. the account tab):
 - No `table` property
 - No `name` field needed
 - UI shows a simple form with save button
@@ -233,16 +207,6 @@ Use `"encrypted": true` on sensitive fields (API keys, passwords). UCC stores th
 ### package/app.manifest
 
 JSON file with app metadata. Note: The `version` field here should match `globalConfig.json` for consistency, but UCC uses the version from `globalConfig.json` as the source of truth and overwrites `app.manifest` during build.
-
-```json
-{
-  "info": {
-    "author": [{"name": "...", "email": "...", "company": "..."}],
-    "title": "...",
-    "description": "..."
-  }
-}
-```
 
 ### package/default/app.conf
 
@@ -265,9 +229,132 @@ python.required = 3.13
 ```
 
 - `chunked = true` is required for streaming commands using the Splunk SDK
-- `local = true` keeps the command on the search head so it does not depend on peer-local MaxMind databases or updater state
+- `local = true` is an SCP1-only setting and is **ignored** for chunked (SCP2) commands. It is left in as a harmless fallback, but it does **not** keep the command on the search head. See "Command distribution" below for what actually works.
 - `python.version` is for backward compatibility with Splunk < 10.2
 - `python.required` is used by Splunk 10.2+ (takes precedence over `python.version`)
+
+#### Command distribution ("Run on indexers")
+
+Under SCP2 (`chunked = true`), Splunk decides distribution from the command's
+getinfo response, not `commands.conf`. The Splunk SDK defaults to reporting
+distributable streaming (`type = streaming`); `distributed=False` makes it
+report `type = stateful` (search-head-only, the built-in equivalent of
+`| localop`). You cannot set `type = stateful` directly in the decorator -
+`StreamingCommand` declares `type` read-only at `streaming`, and the SDK
+rewrites it to `stateful` only as it emits the metadata, only when
+`distributed` is false.
+
+Distribution is decided per search by `prepare()` in `geoip_command.py`,
+which the SDK calls before writing the getinfo reply:
+
+- On the search head, it sets `configuration.distributed` from the "Run on
+  indexers" setting (`[distribution] run_on_indexers` in
+  `geoip_settings.conf`), defaulting to search-head-only on any failure.
+  The read goes through solnlib pinned to the geoip app's namespace
+  (`get_run_on_indexers_setting`), like `get_logger` - not through
+  `command.service`, which is namespaced to the dispatching app and only
+  resolves the conf via the app's `export = system` metadata.
+- On an indexer (search ids there carry a `remote_` prefix), it reports
+  distributed streaming and never touches REST - the app's conf endpoints
+  do not exist on peers, where the app runs from the knowledge bundle under
+  `var/run/searchpeers/`, not `etc/apps/`.
+
+UCC has no globalConfig knob for any of this and its custom-command template
+hardcodes `@Configuration()` with no extension point, so the post-build hook
+in `additional_packaging.py` (`make_command_distribution_toggleable`)
+rewrites the generated `bin/geoip.py`: it imports `prepare` from
+`geoip_command.py`, injects a `prepare()` method, and changes the decorator
+to `@Configuration(distributed=False)` as a fail-safe default in case
+`prepare()` somehow does not run. The hook raises if any marker is missing,
+so a UCC template change fails the build loudly rather than silently
+regressing.
+
+### package/default/distsearch.conf and server.conf
+
+What reaches the indexers is controlled by `default/distsearch.conf`:
+
+- Splunk's default replication allowlist covers app `bin/` and `lookups/`
+  directories plus `.conf`/`.meta` files, but NOT `lib/`. The app adds
+  allowlist entries for the minimal set the command imports at search time
+  on an indexer: `lib/splunklib`, `lib/maxminddb*` (the `*` also matches
+  the `maxminddb-<version>.dist-info` directory, which maxminddb reads at
+  import time via `importlib.metadata.version()` - without it the command
+  crashes on the indexer), and `lib/geoip_utils.py` (about 0.9 MB total).
+  The remaining vendored libraries (grpc, aiohttp, opentelemetry, ...;
+  about 35 MB) are download-only dependencies and stay out of the bundle.
+  `geoip_utils.get_logger` falls back to a basic logger on indexers where
+  solnlib is unavailable.
+- The databases live in the app's `databases/` directory, which is not in
+  Splunk's default allowlist, so while the toggle is off nothing there (the
+  databases, the updater's in-progress `*.temporary` downloads, its lock
+  file) rides the bundle at all. The `geoip_mmdb` allowlist key ships as a
+  placeholder that matches no real file - deliberately not an empty value,
+  which in an allowlist matches everything. Saving "Run on indexers"
+  overrides it in `local/distsearch.conf` (see `_apply_mmdb_replication` in
+  `geoip_rh_settings.py`): the real `apps/geoip/databases/*.mmdb` pattern
+  when enabled, the placeholder when disabled (conf keys cannot be deleted
+  through the REST API). With the toggle on, the scratch files stay out for
+  a different reason: pygeoipupdate names in-progress downloads
+  `<edition>_<random>.temporary`, which `*.mmdb` does not match.
+- IMPORTANT restart semantics (verified on a live cluster): splunkd only
+  reads the replication allowlist/denylist at startup, so toggling the
+  setting changes bundle content only after the search head restarts.
+  The command's `distributed` flag, read per search in `prepare()`,
+  switches immediately - so in a distributed deployment, geoip searches
+  fail with the missing-database error between enabling and restarting
+  (disabling is safe immediately). On a single instance with no search
+  peers, distributing changes nothing and nothing fails. New or updated
+  database files under unchanged rules enter the bundle automatically
+  within a bundle cycle or two - no restart. The help text, README, and
+  the missing-database error all reflect this.
+
+Bundle pushes are triggered by searches dispatched to the indexers, and the
+triggering search still runs against the previous bundle - hence the
+tailored "Database not found on this indexer" error in `geoip_command.py`
+explaining the first-search timing. There is no silent fallback to the
+search head: pipeline placement is fixed at parse time, and yielding events
+unenriched would silently produce wrong results.
+
+`default/server.conf` must be maintained by hand because UCC skips
+generating it when the package ships one. It replicates the app's custom
+conf files and `distsearch.conf` across search head cluster members (so the
+toggle's local override reaches all of them; verified live - splunkd honours
+`conf_replication_include` for a conf type absent from its default list, and
+both `local/distsearch.conf` and `local/geoip_settings.conf` reached the
+non-captain member). `conf_replication_include.distsearch` is instance-wide,
+not app-scoped: `[shclustering]` keys from every app merge into one effective
+`server.conf`, so it enables replication of every runtime `distsearch.conf`
+change on the members, `etc/system/local` and other apps' included - which
+matters because `distsearch.conf` can carry member-specific settings
+(`[distributedSearch] servers`/`disabled`, `[replicationSettings]`,
+`[tokenExchKeys] certDir`, `genKeyScript`). There is no app-scoped
+alternative; the include list is keyed by conf name. It needs no
+`conf_replication_summary` keys - and AppInspect rejects them in an app's
+server.conf - because the `databases/` directory is outside the SHC
+replication summary entirely. That matters: members each download their own
+copies (direct disk writes are not journaled, so they never replicate
+between members in steady state anyway), and a destructive resync (`splunk
+resync shcluster-replicated-config`) was verified live to rewrite
+summarized files from the captain's baseline IN PLACE (same inode, new
+mtime) - a concurrent search reading a database mid-resync could see
+inconsistent data. Keeping the databases out of the summary makes the
+updater's atomic temp-file-and-rename write the only way they are ever
+written. `tests/server_conf_test.py` and `tests/distsearch_conf_test.py`
+guard these files against drift.
+
+### Splunk path patterns in conf files
+
+The path patterns in conf files like `distsearch.conf`'s
+`[replicationAllowlist]`/`[replicationDenylist]` stanzas use Splunk's
+pattern language (the "match language" in `props.conf.spec`), not plain
+regexes: `...` matches anything, `*` matches anything except `/`, `|` and
+`()` work as in regexes, and **a dot matches a literal dot** - never
+escape it. Splunkd escapes dots itself, so a hand-written `\.` becomes a
+match for backslash-then-dot and the pattern silently matches nothing
+(verified on a live cluster: a replication rule ending `\.mmdb` left the
+file in the knowledge bundle; the unescaped pattern removed it). Splunk's
+own defaults never escape dots, e.g. `*.conf`, `....pyc$`,
+`lookups/*.(tmp$|index((|.alive|.lock)$|/...))`.
 
 ## Dependencies
 
@@ -279,27 +366,9 @@ There are three places where dependencies are managed:
 
 ### Updating Dependencies
 
-To update all dependencies:
+To update all dependencies, use the `update-deps` skill (`.claude/skills/update-deps/SKILL.md`).
 
-```bash
-# Check for latest versions of mise tools
-mise latest aqua:astral-sh/uv
-mise latest github:houseabsolute/precious
-
-# After updating mise.toml, regenerate the lock file
-mise lock
-
-# Check for latest Python package versions (example)
-curl -s https://pypi.org/pypi/ruff/json | python3 -c "import sys, json; print(json.load(sys.stdin)['info']['version'])"
-
-# After updating pyproject.toml, sync the lock file
-uv sync
-
-# Verify everything works
-precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
-```
-
-**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
 ## UCC Framework Behavior
 
@@ -309,7 +378,7 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 - UCC automatically sets `python.version = python3` in generated `commands.conf` and `inputs.conf`
 - Warning about "not auto generated by UCC framework" for custom settings is expected
 - `ucc-gen init` creates a `README.md` in the app source directory, but it's not needed and doesn't get included in the output package. Use `package/README.md` for end-user documentation instead.
-- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`.
+- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`. It also rewrites the generated `bin/geoip.py` to inject a `prepare()` method and a fail-safe `distributed=False` default (see "Command distribution").
 
 ### Custom Search Command File Naming
 
@@ -364,7 +433,7 @@ This duplication is unavoidable - UCC either generates the entire file OR copies
 | File | Purpose |
 |------|---------|
 | `geoip_handler.py` | Shared module with `GeoipDatabasesHandler` class and background update functions |
-| `geoip_rh_settings.py` | Complete custom handler for account/logging settings (field definitions duplicated) |
+| `geoip_rh_settings.py` | Complete custom handler for account/distribution/logging settings (field definitions duplicated); also writes the distsearch.conf override for the indexer toggle |
 | `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler` |
 
 **Handler class pattern:**
@@ -405,25 +474,6 @@ Logging uses solnlib to write to `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`
 
 The shared `get_logger(session_key)` function in `geoip_utils.py` is used by all modules (search command, modular input, REST handlers). It's decorated with `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level setting.
 
-```python
-@lru_cache(maxsize=1)
-def get_logger(session_key: str) -> logging.Logger:
-    if not _HAS_SOLNLIB:
-        fallback = logging.getLogger(APP_NAME)
-        fallback.setLevel(logging.INFO)
-        return fallback
-
-    logger: logging.Logger = solnlib_log.Logs().get_logger(APP_NAME)
-    log_level = conf_manager.get_log_level(
-        logger=logger,
-        session_key=session_key,
-        app_name=APP_NAME,
-        conf_name=CONF_NAME,
-    )
-    logger.setLevel(log_level)
-    return logger
-```
-
 ### Key Points
 
 - **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use the app name as logger name for consistency
@@ -431,17 +481,6 @@ def get_logger(session_key: str) -> logging.Logger:
 - **Caching**: The logger is cached with `lru_cache` so only the first call per process makes a REST API call. Only one entry is cached; concurrent searches with different session keys evict each other, which is fine since the log level is global
 - **Logging tab**: Add `{"type": "loggingTab"}` to `globalConfig.json` configuration tabs. Settings are stored in `{app_name}_settings.conf` under the `[logging]` stanza with a `loglevel` field
 - **Don't use `set_context(namespace=...)`**: This prefixes the log filename, resulting in `{namespace}_{logger_name}.log` instead of just `{logger_name}.log`
-
-## CI
-
-GitHub Actions workflows run on push and pull request:
-
-- **test.yml**: Runs `uv run pytest tests` on Ubuntu
-- **lint.yml**: Runs `precious tidy --check -a`, `precious lint -a`, builds the package, and runs AppInspect
-- **codeql-analysis.yml**: CodeQL security scanning (also weekly)
-- **zizmor.yml**: Audits workflow files for security issues
-
-Dependabot is configured to update uv dependencies, the app runtime dependencies in `geoip/package/lib/requirements.txt` (pip ecosystem), and GitHub Actions versions daily.
 
 ## Key Constraints
 

@@ -1,12 +1,35 @@
 # Changelog
 
-## 1.1.4 (unreleased)
+## 1.2.0 (unreleased)
 
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
   the `geoipupdate_input` modular input's default instance is re-enabled,
   and the `[script://...]` stanza and its `geoipupdate_script.py` wrapper
   are removed.
+* Fix the `geoip` command being distributed to indexers, where it fails
+  because the databases are not there. Under SCP2 (`chunked = true`),
+  Splunk decides distribution from the SDK's getinfo response, not
+  `commands.conf`, so the `local = true` setting added in 1.1.0 was
+  ignored. The command now reports itself search-head-only by default,
+  so prepending `| localop` is no longer needed.
+* Store MaxMind databases in the app's `databases/` directory instead of
+  `local/data/`. A directory of the app's own is outside search head
+  cluster replication summaries and outside Splunk's default knowledge
+  bundle allowlist, so replication of the databases is controlled entirely
+  by the app, and the new path is resolved relative to the app root so it
+  also works when the command runs from a knowledge bundle on an indexer.
+  Databases found in the old location are moved to the new one
+  automatically - by the updater's next run or by the first `geoip`
+  search that would otherwise miss them - so upgrades keep working
+  without waiting for a re-download.
+* Add opt-in support for running the `geoip` command on indexers. A new
+  "Distributed Search" configuration tab provides a "Run on indexers"
+  checkbox, off by default because large databases increase the knowledge
+  bundle size and replication can exceed bundle size limits. Enabling it
+  requires restarting the search head (every member, in a search head
+  cluster), because Splunk only reads the replication rules that put the
+  databases into the knowledge bundle at startup.
 
 ## 1.1.3 (2026-06-30)
 

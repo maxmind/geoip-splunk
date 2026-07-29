@@ -17,6 +17,36 @@ except ImportError:
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
 
+# Whether the MaxMind databases ride the knowledge bundle to indexers is
+# controlled through this [replicationAllowlist] key in distsearch.conf. The
+# shipped default (default/distsearch.conf) is a pattern that matches no
+# real file, keeping the databases out of the bundle; enabling "Run on
+# indexers" overrides the key in local/distsearch.conf with the real
+# pattern, since conf keys cannot be deleted through the REST API (see
+# geoip_rh_settings.py).
+MMDB_ALLOWLIST_KEY = "geoip_mmdb"
+
+# The distsearch.conf stanza both the shipped default and the override live
+# in. Shared so the handler, the shipped conf, and their tests cannot drift:
+# a rename that reaches only some of them would put the override in a stanza
+# splunkd ignores, leaving the placeholder effective while the setting reads
+# as enabled - the state every geoip search fails in.
+REPLICATION_ALLOWLIST_STANZA = "replicationAllowlist"
+
+# Allow pattern: databases ride the bundle (indexer execution on).
+MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
+
+# Allow-nothing pattern: matches no real file, so the databases stay out of
+# the bundle (indexer execution off).
+MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
+
+# Conf coordinates of the "Run on indexers" toggle in geoip_settings.conf:
+# the stanza (also the settings tab's REST id) and the field within it.
+# Shared by the settings handler, which writes the stanza, and the search
+# command, which reads it per search, so the two sides cannot drift.
+DISTRIBUTION_STANZA = "distribution"
+RUN_ON_INDEXERS_FIELD = "run_on_indexers"
+
 # Field specifications for the settings REST handler (geoip_rh_settings.py).
 # That file builds RestField objects from these specs. Tests compare these
 # specs against globalConfig.json to catch drift between the two files.
@@ -43,6 +73,17 @@ SETTINGS_FIELD_SPECS = {
             ],
         },
     ],
+    DISTRIBUTION_STANZA: [
+        {
+            # Checkbox: stored as 1/0. UCC checkbox entities do not take
+            # validators.
+            "field": RUN_ON_INDEXERS_FIELD,
+            "required": False,
+            "encrypted": False,
+            "default": 0,
+            "validators": [],
+        },
+    ],
     "logging": [
         {
             "field": "loglevel",
@@ -60,18 +101,149 @@ SETTINGS_FIELD_SPECS = {
 }
 
 
+def is_truthy(value: object) -> bool:
+    """Whether a conf or REST value represents true.
+
+    Splunk checkboxes and conf files store booleans as "1"/"0"; accept a
+    few common spellings. Shared by the settings handler and the search
+    command so both sides of the "Run on indexers" toggle agree.
+    """
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
+def migrate_legacy_databases(logger: logging.Logger) -> None:
+    """Move databases from the pre-1.2.0 location into databases/.
+
+    Releases before 1.2.0 stored the databases in the app's local/data/
+    directory (resolved via $SPLUNK_HOME). Files left there after an
+    upgrade would sit in search head cluster replication summaries
+    indefinitely, and the geoip command would error until the updater
+    re-downloaded everything. Called by the updater at the start of each
+    run and by the geoip command when a database is missing; once the
+    old directory is gone this is a single stat() no-op.
+
+    The move never overwrites: os.link raises FileExistsError when the
+    destination exists, which means the updater already downloaded a
+    fresher copy there, so the legacy file is only deleted. Both
+    directories are under the app root, on one filesystem. Never raises:
+    a failed migration must not take down a search or an update run -
+    the files are re-downloadable.
+    """
+    splunk_home = os.environ.get("SPLUNK_HOME", "/opt/splunk")
+    legacy_dir = Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
+    if not legacy_dir.is_dir():
+        return
+    try:
+        database_directory = get_database_directory()
+        database_directory.mkdir(parents=True, exist_ok=True)
+        for legacy_path in sorted(legacy_dir.glob("*.mmdb")):
+            new_path = database_directory / legacy_path.name
+            try:
+                os.link(legacy_path, new_path)
+            except FileExistsError:
+                logger.info(
+                    "Removing legacy database %s: %s already exists",
+                    legacy_path,
+                    new_path,
+                )
+            except FileNotFoundError:
+                _log_migration_enoent(logger, legacy_path, new_path)
+                continue
+            except OSError:
+                # One unmigratable file (left root-owned by a manual copy,
+                # an immutable or SELinux bit, EMLINK, ENOSPC) is that
+                # file's problem alone. Reaching the handler below would
+                # abandon every remaining database, and since sorted() fixes
+                # the order the same file would block them on every later
+                # run as well.
+                logger.exception("Failed to migrate legacy database %s", legacy_path)
+                continue
+            else:
+                logger.info("Migrated database %s to %s", legacy_path, new_path)
+            legacy_path.unlink(missing_ok=True)
+        # The old updater's scratch files, removed so rmdir can succeed.
+        for leftover in (
+            *legacy_dir.glob("*.temporary"),
+            legacy_dir / ".geoipupdate.lock",
+        ):
+            leftover.unlink(missing_ok=True)
+        try:
+            legacy_dir.rmdir()
+        except OSError:
+            # Anything the globs above do not cover (a .mmdb.gz, a stale
+            # .md5, a subdirectory, a database this run could not move)
+            # keeps the directory alive, and with it the search head
+            # cluster replication summary entries the migration exists to
+            # remove. Say so rather than treating it as success.
+            logger.warning(
+                "Left %s in place; unexpected files remain there and will "
+                "stay in search head cluster replication summaries: %s",
+                legacy_dir,
+                ", ".join(sorted(p.name for p in legacy_dir.iterdir())),
+            )
+    except Exception:  # migration must never take down the caller
+        logger.exception("Failed to migrate databases from %s", legacy_dir)
+
+
+def _log_migration_enoent(
+    logger: logging.Logger,
+    legacy_path: Path,
+    new_path: Path,
+) -> None:
+    """Log an ENOENT raised by the os.link in migrate_legacy_databases.
+
+    os.link raises ENOENT for either operand. A vanished source is the
+    benign case - a concurrent migration moved it first - but anything else
+    (a destination directory removed since the mkdir) would otherwise skip
+    every database without a word.
+    """
+    if legacy_path.exists():
+        logger.warning(
+            "Could not migrate legacy database %s to %s: no such file or "
+            "directory (the destination directory may be gone)",
+            legacy_path,
+            new_path,
+        )
+        return
+    logger.debug(
+        "Legacy database %s vanished; a concurrent migration moved it first",
+        legacy_path,
+    )
+
+
 def get_database_directory() -> Path:
     """Get the directory where MaxMind databases are stored.
 
-    Database storage location: $SPLUNK_HOME/etc/apps/geoip/local/data/
+    Database storage location: the app's databases/ directory, located
+    relative to this file (<app root>/lib/geoip_utils.py -> <app
+    root>/databases/).
 
-    Why /local/data/:
-    - The /local/ directory is preserved across app upgrades
-    - Apps can write to their own /local/ directory in both Enterprise and Cloud
-    - Using a /data/ subdirectory keeps databases separate from .conf files
+    Why databases/ (a custom app-level directory):
+    - It is outside search head cluster conf replication summaries, which
+      capture only local/..., lookups/*, and metadata: members do not
+      re-summarize hundreds of MB of binaries every minute, a destructive
+      resync cannot rewrite a database in place mid-read, and no
+      conf_replication_summary excludelist in server.conf (which
+      AppInspect rejects) is needed to prevent any of that
+    - It is outside Splunk's default knowledge bundle allowlist (app bin/
+      and lookups/), so whether the databases replicate to indexers is
+      controlled solely by the app's own distsearch.conf allowlist entry
+    - Resolving the path relative to this file works both when the app is
+      installed ($SPLUNK_HOME/etc/apps/geoip/) and when it runs from a
+      knowledge bundle on an indexer
+      ($SPLUNK_HOME/var/run/searchpeers/<bundle>/apps/geoip/)
 
     Why NOT other locations:
-    - /default/ or package /data/: Overwritten on upgrades, read-only after install
+    - lookups/: rides the knowledge bundle for free via the default
+      allowlist, but is swept into SHC replication summaries, and keeping
+      the databases out of those requires the server.conf excludelist
+      AppInspect rejects
+    - local/data/ (the previous location): local/... is recursively
+      included in SHC replication summaries too, and $SPLUNK_HOME-based
+      resolution breaks on indexers where the app root is not under
+      etc/apps
+    - /default/ or package /data/: Overwritten on upgrades, read-only after
+      install
     - $SPLUNK_HOME/var/lib/splunk/: Not a standard app data location
     - $SPLUNK_HOME/share/: System directory, not for app data
     - KV Store: Only for structured data, not binary files like .mmdb
@@ -79,6 +251,7 @@ def get_database_directory() -> Path:
     References:
     - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Apparchitectureandobjectownership
     - https://docs.splunk.com/Documentation/Splunk/latest/Admin/Configurationfiledirectories
+    - https://docs.splunk.com/Documentation/Splunk/latest/DistSearch/Whatsearchheadssend
 
     Returns:
         Path to the database directory.
@@ -88,8 +261,27 @@ def get_database_directory() -> Path:
     if env_dir := os.environ.get("MAXMIND_DB_DIR"):
         return Path(env_dir)
 
-    splunk_home = os.environ.get("SPLUNK_HOME", "/opt/splunk")
-    return Path(splunk_home, "etc", "apps", APP_NAME, "local", "data")
+    return Path(__file__).resolve().parent.parent / "databases"
+
+
+def get_run_on_indexers_setting(session_key: str) -> object:
+    """Read the raw "Run on indexers" value from geoip_settings.conf.
+
+    Reads through solnlib with app_name pinned to the geoip app, like
+    get_logger: the geoip command can be dispatched from any app, and the
+    SDK's command.service is namespaced to the dispatching app, so a read
+    through it resolves the conf only via the app's export = system
+    metadata. Pinning the namespace removes that dependency.
+
+    Raises on any failure, including solnlib being unavailable (it is not
+    part of the knowledge bundle, but the setting is only read on the
+    search head); callers decide the fallback.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_settings.conf"
+        raise RuntimeError(msg)
+    conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf(CONF_NAME)
+    return conf.get(DISTRIBUTION_STANZA).get(RUN_ON_INDEXERS_FIELD)
 
 
 def get_fallback_logger() -> logging.Logger:
