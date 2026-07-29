@@ -26,7 +26,10 @@
 * Add opt-in support for running the `geoip` command on indexers. A new
   "Distributed Search" configuration tab provides a "Run on indexers"
   checkbox, off by default because large databases increase the knowledge
-  bundle size and replication can exceed bundle size limits.
+  bundle size and replication can exceed bundle size limits. Enabling it
+  requires restarting the search head (every member, in a search head
+  cluster), because Splunk only reads the replication rules that put the
+  databases into the knowledge bundle at startup.
 
 ## 1.1.3 (2026-06-30)
 
