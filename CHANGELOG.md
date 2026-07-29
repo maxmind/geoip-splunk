@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0 (2026-07-29)
 
 * Revert the scripted-input experiment from 1.1.3. The scripted input did
   not run on every search head cluster member in Splunk Cloud either, so
