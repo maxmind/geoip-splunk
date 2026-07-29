@@ -109,7 +109,7 @@ The app depends on the `pygeoipupdate` PyPI package (listed in `package/lib/requ
 ```bash
 # Setup environment
 mise install                      # Install uv, precious
-uv sync                           # Install build dependencies
+uv sync --group lint              # Install build and lint dependencies
 git submodule update --init       # Initialize test data submodule
 
 # Build the app
@@ -367,7 +367,7 @@ There are three places where dependencies are managed:
 
 To update all dependencies, use the `update-deps` skill (`.claude/skills/update-deps/SKILL.md`).
 
-**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
 
 ## UCC Framework Behavior
 
