@@ -20,7 +20,7 @@ dev = [
 ]
 lint = [
     "mypy>=2.3.0",
-    "ruff>=0.15.22",
+    "ruff>=0.16.1",
     "splunk-appinspect>=4.3.0",
 ]
 
