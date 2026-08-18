@@ -48,13 +48,34 @@ def make_command_distribution_toggleable(output_dir: Path) -> None:
     Each marker is verified so a UCC template change fails the build loudly
     rather than silently regressing.
     """
-    wrapper = output_dir / "bin" / "geoip.py"
+    _inject_prepare(
+        output_dir / "bin" / "geoip.py",
+        import_marker="from geoip_command import stream",
+        import_replacement="from geoip_command import prepare, stream",
+        method_marker="    def stream(self, events):",
+    )
+
+
+def _inject_prepare(
+    wrapper: Path,
+    *,
+    import_marker: str,
+    import_replacement: str,
+    method_marker: str,
+) -> None:
+    """Rewrite a generated command wrapper to delegate prepare().
+
+    Imports ``prepare`` from the command's source module, injects a
+    ``prepare()`` method before the wrapper's entry method, and changes
+    the bare ``@Configuration()`` decorator to
+    ``@Configuration(distributed=False)``.
+    """
     source = wrapper.read_text()
     source = _replace_marker(
         source,
         wrapper,
-        "from geoip_command import stream",
-        "from geoip_command import prepare, stream",
+        import_marker,
+        import_replacement,
     )
     source = _replace_marker(
         source,
@@ -65,11 +86,8 @@ def make_command_distribution_toggleable(output_dir: Path) -> None:
     source = _replace_marker(
         source,
         wrapper,
-        "    def stream(self, events):",
-        "    def prepare(self):\n"
-        "        prepare(self)\n"
-        "\n"
-        "    def stream(self, events):",
+        method_marker,
+        "    def prepare(self):\n        prepare(self)\n\n" + method_marker,
     )
     wrapper.write_text(source)
 
