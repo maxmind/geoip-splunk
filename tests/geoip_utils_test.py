@@ -296,3 +296,74 @@ def test_get_run_on_indexers_setting_raises_without_solnlib() -> None:
         pytest.raises(RuntimeError, match="solnlib is unavailable"),
     ):
         geoip_utils.get_run_on_indexers_setting("test_session_key")
+
+
+def test_get_configured_database_names_reads_from_the_geoip_namespace() -> None:
+    """The read must pin app_name to the geoip app, like the other
+    conf reads in this module."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {
+            "GeoLite2-Country": {},
+            "GeoLite2-City": {},
+        }
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    manager_mod.ConfManager.assert_called_once_with("test_session_key", "geoip")
+    manager_mod.ConfManager.return_value.get_conf.assert_called_once_with(
+        "geoip_databases"
+    )
+    conf.get_all.assert_called_once_with(only_current_app=True)
+    assert result == ["GeoLite2-Country", "GeoLite2-City"]
+
+
+def test_get_configured_database_names_excludes_default_stanza() -> None:
+    """The 'default' stanza is conf plumbing, not a configured database."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {
+            "default": {},
+            "GeoLite2-Country": {},
+        }
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == ["GeoLite2-Country"]
+
+
+def test_get_configured_database_names_returns_empty_list() -> None:
+    """No configured databases is not an error here; callers decide."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {"default": {}}
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == []
+
+
+def test_get_configured_database_names_raises_without_solnlib() -> None:
+    """On an indexer solnlib is absent; the caller's fallback handles it."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.get_configured_database_names("test_session_key")

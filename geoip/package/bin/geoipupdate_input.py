@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from geoip_utils import (
     APP_NAME,
+    get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
     get_logger,
@@ -179,18 +180,9 @@ def _get_database_names(session_key: str) -> list[str]:
     )
 
     try:
-        cfm = conf_manager.ConfManager(
-            session_key,
-            APP_NAME,
-        )
-        conf = cfm.get_conf(f"{APP_NAME}_databases")
+        databases = get_configured_database_names(session_key)
     except ConfManagerException as e:
         raise ValueError(msg) from e
-
-    # Get all stanzas except 'default'
-    databases = [
-        name for name in conf.get_all(only_current_app=True) if name != "default"
-    ]
 
     if not databases:
         raise ValueError(msg)

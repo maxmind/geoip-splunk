@@ -284,6 +284,31 @@ def get_run_on_indexers_setting(session_key: str) -> object:
     return conf.get(DISTRIBUTION_STANZA).get(RUN_ON_INDEXERS_FIELD)
 
 
+def get_configured_database_names(session_key: str) -> list[str]:
+    """Get configured database names from geoip_databases.conf.
+
+    Reads through solnlib with app_name pinned to the geoip app, like
+    get_run_on_indexers_setting. Returns a possibly-empty list; callers
+    decide whether an empty list is an error.
+
+    Raises on any failure, including solnlib being unavailable (it is not
+    part of the knowledge bundle, but the conf is only read on the search
+    head); callers decide the fallback.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_databases.conf"
+        raise RuntimeError(msg)
+
+    cfm = conf_manager.ConfManager(
+        session_key,
+        APP_NAME,
+    )
+    conf = cfm.get_conf(f"{APP_NAME}_databases")
+
+    # Get all stanzas except 'default'
+    return [name for name in conf.get_all(only_current_app=True) if name != "default"]
+
+
 def get_fallback_logger() -> logging.Logger:
     """Get a basic logger for use when no session key is available.
 
