@@ -144,9 +144,11 @@ This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.
 
 ### Error Handling
 
-- Events with missing or empty IP fields are passed through unchanged.
-- Events with invalid IP addresses are passed through unchanged.
-- Events with IPs not found in any database are passed through unchanged.
+- Events with missing or empty IP fields are passed through without
+  enrichment.
+- Events with invalid IP addresses are passed through without enrichment.
+- Events with IPs not found in any database are passed through without
+  enrichment.
 - If a specified database does not exist, the command raises an error.
 
 ### Supported Databases

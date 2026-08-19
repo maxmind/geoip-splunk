@@ -301,6 +301,41 @@ def test_is_valid_database_name(name: str, valid: bool) -> None:  # noqa: FBT001
     assert geoip_utils.is_valid_database_name(name) is valid
 
 
+def test_fill_missing_event_fields_backfills_the_union() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = [{"a": 1}, {"b": 2}, {"a": 3, "c": 4}]
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == [
+        {"a": 1, "b": None, "c": None},
+        {"a": None, "b": 2, "c": None},
+        {"a": 3, "b": None, "c": 4},
+    ]
+
+
+def test_fill_missing_event_fields_keeps_falsy_values() -> None:
+    """setdefault must not clobber a field that is present but falsy."""
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = [{"a": 0, "b": ""}, {"c": None}]
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == [
+        {"a": 0, "b": "", "c": None},
+        {"a": None, "b": None, "c": None},
+    ]
+
+
+def test_fill_missing_event_fields_empty_list() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = []
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == []
+
+
 def test_get_run_on_indexers_setting_reads_from_the_geoip_namespace() -> None:
     """The read must pin app_name to the geoip app: the command can be
     dispatched from any app, and the dispatching app's namespace only

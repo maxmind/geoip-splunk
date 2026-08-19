@@ -23,7 +23,15 @@ Behavior:
 - When databases have conflicting fields, the last database wins
 - The `network` field contains the most specific (smallest) CIDR block across all databases
 - Database names are validated to only allow alphanumeric characters, underscores, and hyphens (security measure against path traversal)
-- Events with missing, empty, invalid, or not-found IPs pass through unchanged
+- Events with missing, empty, invalid, or not-found IPs pass through
+  unenriched
+- Every event in a chunk carries the same field set (the union across the
+  chunk, backfilled with empty values via `fill_missing_event_fields` in
+  `geoip_utils.py`): the SDK's record writer locks the output fields to the
+  first record's keys per chunk, so without this a pass-through event at the
+  head of a chunk would silently strip the enrichment from every other event
+  in it. `stream()` buffers one chunk (the SDK calls it once per SCP2 chunk)
+  to compute the union.
 - Runs on the search head by default; optionally on the indexers via the
   "Run on indexers" setting (see "Command distribution" below)
 
@@ -96,8 +104,9 @@ Two behaviors verified on a live cluster:
   first record in each output chunk (splunklib
   `internals.RecordWriter._write_record`; `RecordWriterV2._clear` resets
   it per chunk), so `generate()` fills every event with the union of all
-  events' fields - without that, the components emitted after the first
-  silently lose the fields the first does not have.
+  events' fields via `fill_missing_event_fields` (shared with the geoip
+  command's `stream()`) - without that, the components emitted after the
+  first silently lose the fields the first does not have.
 
 Distribution is decided by the command's own `indexers` argument (default
 false = search-head-only), not the "Run on indexers" setting: `prepare()`

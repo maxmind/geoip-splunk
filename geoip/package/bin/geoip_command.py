@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
 from geoip_utils import (
+    fill_missing_event_fields,
     get_database_directory,
     get_fallback_logger,
     get_logger,
@@ -147,7 +148,18 @@ def stream(
     list wins.
 
     If no result is found in any database (invalid IP, IP not in database, or
-    missing IP field), the event is yielded unchanged.
+    missing IP field), the event is yielded without enrichment (though its
+    field set is still normalized with the rest of the chunk - see below).
+
+    Every yielded event carries the union of all events' fields, missing
+    ones backfilled with None: the SDK's record writer locks the output
+    field set to the first record's keys in each output chunk, so without
+    this, one unmatched IP at the head of a chunk would silently strip
+    the enrichment fields from every other event in it (and a matched IP
+    would strip whichever fields its records happen to lack). The SDK
+    calls stream() once per SCP2 chunk and resets the field set in
+    between, so this buffers exactly one chunk - whose body the SDK
+    already holds in memory as a string anyway.
 
     Args:
         command: The Command instance with arguments:
@@ -176,12 +188,13 @@ def stream(
     field = command.field
     prefix = command.prefix
 
+    output_events = []
     for event in events:
         ip_address = event.get(field)
 
         if not ip_address:
             get_logger(session_key).debug("Event missing or empty field: %s", field)
-            yield event
+            output_events.append(event)
             continue
 
         found_any = False
@@ -218,13 +231,16 @@ def stream(
             largest_prefix_len = max(largest_prefix_len, prefix_len)
 
         if not found_any:
-            yield event
+            output_events.append(event)
             continue
 
         network = ip_network(f"{ip_address}/{largest_prefix_len}", strict=False)
         event[f"{prefix}network"] = str(network)
 
-        yield event
+        output_events.append(event)
+
+    fill_missing_event_fields(output_events)
+    yield from output_events
 
 
 # Cache of open database readers, keyed by database name.

@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import maxminddb
 from geoip_utils import (
+    fill_missing_event_fields,
     get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
@@ -134,13 +135,10 @@ def generate(command: Command) -> Iterator[dict[str, Any]]:
         event["_time"] = now
 
     # The SDK's record writer locks the output field set to the first
-    # record's keys (splunklib internals.RecordWriter._write_record), so
-    # every event must carry every field or the components emitted after
-    # the first silently lose the fields the first does not have.
-    all_fields = {key: None for event in events for key in event}
-    for event in events:
-        for key in all_fields:
-            event.setdefault(key, None)
+    # record's keys, so every event must carry every field or the
+    # components emitted after the first silently lose the fields the
+    # first does not have.
+    fill_missing_event_fields(events)
 
     yield from events
 

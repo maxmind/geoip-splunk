@@ -5,6 +5,7 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 try:
     from solnlib import conf_manager
@@ -131,6 +132,26 @@ def is_valid_database_name(name: str) -> bool:
     traverse paths. Shared by the geoip and geoipdebug commands.
     """
     return bool(_VALID_DB_NAME.match(name))
+
+
+def fill_missing_event_fields(events: list[dict[str, Any]]) -> None:
+    """Give every event the union of all events' fields, in place.
+
+    The SDK's record writer locks the output field set to the keys of the
+    first record it writes in each output chunk (splunklib
+    internals.RecordWriter._write_record; RecordWriterV2._clear resets it
+    per chunk), so a field that only later events in the chunk have would
+    silently vanish from the results. Backfilling with None keeps the
+    value empty in the output, like a genuinely absent field.
+
+    Shared by the geoip and geoipdebug commands, whose events' fields
+    vary per event: the database fields depend on the IP looked up, and
+    the diagnostic fields depend on the component.
+    """
+    all_fields = {key: None for event in events for key in event}
+    for event in events:
+        for key in all_fields:
+            event.setdefault(key, None)
 
 
 def migrate_legacy_databases(logger: logging.Logger) -> None:
