@@ -8,6 +8,7 @@ from pathlib import Path
 try:
     from solnlib import conf_manager
     from solnlib import log as solnlib_log
+    from solnlib.soln_exceptions import ConfManagerException
 
     _HAS_SOLNLIB = True
 except ImportError:
@@ -289,11 +290,13 @@ def get_configured_database_names(session_key: str) -> list[str]:
 
     Reads through solnlib with app_name pinned to the geoip app, like
     get_run_on_indexers_setting. Returns a possibly-empty list; callers
-    decide whether an empty list is an error.
+    decide whether an empty list is an error. The conf file not existing
+    (it is only created when the first database is added) means the same
+    as an empty one: nothing is configured.
 
-    Raises on any failure, including solnlib being unavailable (it is not
-    part of the knowledge bundle, but the conf is only read on the search
-    head); callers decide the fallback.
+    Raises on any other failure, including solnlib being unavailable (it
+    is not part of the knowledge bundle, but the conf is only read on the
+    search head); callers decide the fallback.
     """
     if not _HAS_SOLNLIB:
         msg = "solnlib is unavailable; cannot read geoip_databases.conf"
@@ -303,7 +306,10 @@ def get_configured_database_names(session_key: str) -> list[str]:
         session_key,
         APP_NAME,
     )
-    conf = cfm.get_conf(f"{APP_NAME}_databases")
+    try:
+        conf = cfm.get_conf(f"{APP_NAME}_databases")
+    except ConfManagerException:
+        return []
 
     # Get all stanzas except 'default'
     return [name for name in conf.get_all(only_current_app=True) if name != "default"]

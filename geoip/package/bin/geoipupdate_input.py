@@ -174,17 +174,13 @@ def _get_database_names(session_key: str) -> list[str]:
         ValueError: If no databases are configured.
 
     """
-    msg = (
-        "No databases configured. "
-        "Go to Configuration > Databases to add databases to download."
-    )
-
-    try:
-        databases = get_configured_database_names(session_key)
-    except ConfManagerException as e:
-        raise ValueError(msg) from e
+    databases = get_configured_database_names(session_key)
 
     if not databases:
+        msg = (
+            "No databases configured. "
+            "Go to Configuration > Databases to add databases to download."
+        )
         raise ValueError(msg)
 
     return databases

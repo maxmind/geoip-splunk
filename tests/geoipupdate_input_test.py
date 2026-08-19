@@ -434,18 +434,6 @@ def test_get_database_names_raises_when_empty() -> None:
         _get_database_names("session_key")
 
 
-def test_get_database_names_raises_when_conf_missing() -> None:
-    """Test _get_database_names raises ValueError on fresh install."""
-    with (
-        patch(
-            "geoipupdate_input.get_configured_database_names",
-            side_effect=ConfManagerException("Config file not found"),
-        ),
-        pytest.raises(ValueError, match="No databases configured"),
-    ):
-        _get_database_names("session_key")
-
-
 def test_run_update_logs_updated_databases(tmp_path: Path) -> None:
     """Test _run_update logs info for updated databases."""
     mock_logger = MagicMock(spec=logging.Logger)

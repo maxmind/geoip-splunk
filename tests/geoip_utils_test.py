@@ -358,6 +358,33 @@ def test_get_configured_database_names_returns_empty_list() -> None:
     assert result == []
 
 
+def test_get_configured_database_names_empty_when_the_conf_is_missing() -> None:
+    """The conf file only exists once the first database is added, so a
+    missing file means nothing is configured, not an error."""
+    import geoip_utils  # noqa: PLC0415
+
+    class ManagerError(Exception):
+        pass
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+        patch.object(
+            geoip_utils,
+            "ConfManagerException",
+            new=ManagerError,
+            create=True,
+        ),
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = ManagerError(
+            "Config file not found"
+        )
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == []
+
+
 def test_get_configured_database_names_raises_without_solnlib() -> None:
     """On an indexer solnlib is absent; the caller's fallback handles it."""
     import geoip_utils  # noqa: PLC0415
