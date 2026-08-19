@@ -264,6 +264,24 @@ def test_is_truthy() -> None:
     assert not geoip_utils.is_truthy(None)
 
 
+@pytest.mark.parametrize(
+    ("name", "valid"),
+    [
+        ("GeoIP2-Country", True),
+        ("GeoLite2_City", True),
+        ("db1", True),
+        ("", False),
+        ("../etc/passwd", False),
+        ("name.mmdb", False),
+        ("name with spaces", False),
+    ],
+)
+def test_is_valid_database_name(name: str, valid: bool) -> None:  # noqa: FBT001
+    import geoip_utils  # noqa: PLC0415
+
+    assert geoip_utils.is_valid_database_name(name) is valid
+
+
 def test_get_run_on_indexers_setting_reads_from_the_geoip_namespace() -> None:
     """The read must pin app_name to the geoip app: the command can be
     dispatched from any app, and the dispatching app's namespace only

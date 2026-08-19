@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -116,6 +117,20 @@ def is_truthy(value: object) -> bool:
     command so both sides of the "Run on indexers" toggle agree.
     """
     return str(value).strip().lower() in ("1", "true", "yes")
+
+
+# Valid database name pattern (alphanumeric, underscores, and hyphens only)
+_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def is_valid_database_name(name: str) -> bool:
+    """Whether a database name is safe to join onto the database directory.
+
+    Database names arrive from search arguments and user configuration
+    and become file paths, so restrict them to characters that cannot
+    traverse paths. Shared by the geoip and geoipdebug commands.
+    """
+    return bool(_VALID_DB_NAME.match(name))
 
 
 def migrate_legacy_databases(logger: logging.Logger) -> None:

@@ -22,7 +22,7 @@ Behavior:
 - Queries each database and merges all fields into the event
 - When databases have conflicting fields, the last database wins
 - The `network` field contains the most specific (smallest) CIDR block across all databases
-- Database names are validated to only allow alphanumeric characters and hyphens (security measure against path traversal)
+- Database names are validated to only allow alphanumeric characters, underscores, and hyphens (security measure against path traversal)
 - Events with missing, empty, invalid, or not-found IPs pass through unchanged
 - Runs on the search head by default; optionally on the indexers via the
   "Run on indexers" setting (see "Command distribution" below)

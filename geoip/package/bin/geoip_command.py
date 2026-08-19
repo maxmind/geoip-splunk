@@ -2,7 +2,6 @@
 
 import contextlib
 import os
-import re
 import sys
 from collections.abc import Iterator
 from ipaddress import ip_network
@@ -17,6 +16,7 @@ from geoip_utils import (
     get_logger,
     get_run_on_indexers_setting,
     is_truthy,
+    is_valid_database_name,
     migrate_legacy_databases,
 )
 
@@ -239,9 +239,6 @@ def stream(
 # receive multiple batches in the same process).
 _readers: dict[str, maxminddb.Reader] = {}
 
-# Valid database name pattern (alphanumeric, underscores, and hyphens only)
-_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
-
 
 def _get_reader(
     name: str, *, session_key: str, on_indexer: bool = False
@@ -262,7 +259,7 @@ def _get_reader(
         FileNotFoundError: If the database file doesn't exist
 
     """
-    if not _VALID_DB_NAME.match(name):
+    if not is_valid_database_name(name):
         msg = f"Invalid database name: {name}"
         raise ValueError(msg)
     if name not in _readers:
