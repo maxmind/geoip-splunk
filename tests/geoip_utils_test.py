@@ -298,6 +298,66 @@ def test_get_run_on_indexers_setting_raises_without_solnlib() -> None:
         geoip_utils.get_run_on_indexers_setting("test_session_key")
 
 
+def test_get_setting_returns_the_field_value() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = {"loglevel": "DEBUG"}
+
+        result = geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+    conf.get.assert_called_once_with("logging")
+    assert result == "DEBUG"
+
+
+def test_get_setting_none_when_the_field_is_missing() -> None:
+    """A field absent from both default/ and local/ reads as None."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = {"other": "1"}
+
+        assert (
+            geoip_utils.get_setting("test_session_key", "logging", "loglevel") is None
+        )
+
+
+def test_get_setting_raises_when_the_read_fails() -> None:
+    """The shipped default/geoip_settings.conf means the conf and its
+    stanzas exist on any healthy install, so a failed read is a fault to
+    surface, not a fresh install; the caller decides the fallback."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = RuntimeError(
+            "splunkd unreachable"
+        )
+
+        with pytest.raises(RuntimeError, match="splunkd unreachable"):
+            geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+
+def test_get_setting_raises_without_solnlib() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+
 def test_get_configured_database_names_reads_from_the_geoip_namespace() -> None:
     """The read must pin app_name to the geoip app, like the other
     conf reads in this module."""

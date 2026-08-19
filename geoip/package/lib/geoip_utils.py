@@ -271,7 +271,7 @@ def get_database_directory() -> Path:
     return Path(__file__).resolve().parent.parent / "databases"
 
 
-def get_run_on_indexers_setting(session_key: str) -> object:
+def get_run_on_indexers_setting(session_key: str) -> object | None:
     """Read the raw "Run on indexers" value from geoip_settings.conf.
 
     Reads through solnlib with app_name pinned to the geoip app, like
@@ -284,11 +284,26 @@ def get_run_on_indexers_setting(session_key: str) -> object:
     part of the knowledge bundle, but the setting is only read on the
     search head); callers decide the fallback.
     """
+    return get_setting(session_key, DISTRIBUTION_STANZA, RUN_ON_INDEXERS_FIELD)
+
+
+def get_setting(session_key: str, stanza_name: str, field: str) -> object | None:
+    """Read one field of geoip_settings.conf.
+
+    The shipped default/geoip_settings.conf (UCC generates it from the
+    globalConfig defaults) means the conf and its stanzas exist on any
+    healthy install, and the conf endpoint merges default/ and local/.
+    So there is no missing-because-never-saved case to soften: a read
+    that fails is abnormal and raises, including when solnlib is
+    unavailable, and callers decide the fallback. None means the field
+    itself is absent from both default/ and local/.
+    """
     if not _HAS_SOLNLIB:
         msg = "solnlib is unavailable; cannot read geoip_settings.conf"
         raise RuntimeError(msg)
     conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf(CONF_NAME)
-    return conf.get(DISTRIBUTION_STANZA).get(RUN_ON_INDEXERS_FIELD)
+    value: object | None = conf.get(stanza_name).get(field)
+    return value
 
 
 def get_configured_database_names(session_key: str) -> list[str]:
