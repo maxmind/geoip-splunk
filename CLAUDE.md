@@ -10,7 +10,7 @@ This is a Splunk App for MaxMind GeoIP lookups, built using the Splunk UCC (Univ
 
 ## The geoip Command
 
-```
+```spl
 | geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
@@ -45,7 +45,7 @@ Database readers are cached at module level in `_readers`. This means:
 
 ## The geoipdebug Command
 
-```
+```spl
 | geoipdebug [indexers=<bool>]
 ```
 

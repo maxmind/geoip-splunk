@@ -63,7 +63,7 @@ data from MaxMind databases.
 
 ### Syntax
 
-```
+```spl
 | geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
@@ -124,19 +124,19 @@ value from the last database in the list is used.
 
 Look up country information for the ip field:
 
-```
+```spl
 | makeresults | eval ip="8.8.8.8" | geoip databases=GeoIP2-Country
 ```
 
 Look up city information using a custom field:
 
-```
+```spl
 | ... | geoip field=client_ip databases=GeoIP2-City
 ```
 
 Combine country and anonymous IP detection with a prefix:
 
-```
+```spl
 | ... | geoip prefix=geo_ databases="GeoIP2-Country,GeoIP2-Anonymous-IP"
 ```
 
@@ -164,7 +164,7 @@ when reporting a problem with the app.
 
 ### Syntax
 
-```
+```spl
 | geoipdebug [indexers=<bool>]
 ```
 
@@ -226,7 +226,7 @@ app's configuration is not available):
 
 Show the databases on the search head:
 
-```
+```spl
 | geoipdebug
 | where component="database"
 | table database present build_time file_mtime error
@@ -241,7 +241,7 @@ With `indexers=true`, the command runs on the search head and on each
 search peer. The peers report the database copies their knowledge bundle
 carries; the `hostname` field says which node reported each event:
 
-```
+```spl
 | geoipdebug indexers=true
 | table hostname component database present build_time error
 ```
