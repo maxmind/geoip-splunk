@@ -17,6 +17,11 @@ dev = [
     "pygeoipupdate>=0.1.0",
     "pytest>=9.1.1",
     "pytest-httpserver>=1.0.10",
+    # Pinned to the version requirements.txt ships: the import-surface
+    # test guards the names the app actually loads. urllib3 is imported
+    # by solnlib.conf_manager at import time but is not declared by it.
+    "solnlib==8.1.0",
+    "urllib3>=2.7.0",
 ]
 lint = [
     "mypy>=2.3.0",
@@ -89,6 +94,13 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["splunktaucclib", "splunktaucclib.*"]
+ignore_missing_imports = true
+
+# splunklib (splunk-sdk) is untyped; it is in the dev venv as a
+# dependency of solnlib, which is installed so the suite can verify
+# geoip_utils binds solnlib's real names.
+[[tool.mypy.overrides]]
+module = ["splunklib", "splunklib.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

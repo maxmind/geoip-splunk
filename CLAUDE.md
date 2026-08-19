@@ -451,7 +451,7 @@ There are three places where dependencies are managed:
 
 To update all dependencies, use the `update-deps` skill (`.claude/skills/update-deps/SKILL.md`).
 
-**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb`, `pygeoipupdate`, or `solnlib` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync (`solnlib` is pinned `==` in both so the import-surface test guards the shipped version).
 
 ## UCC Framework Behavior
 

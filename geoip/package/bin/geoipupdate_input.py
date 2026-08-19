@@ -232,7 +232,7 @@ def _run_update(
 # Entry point for Splunk modular input
 if __name__ == "__main__":
     # Import here to avoid issues when module is imported for testing
-    from splunklib.modularinput import (  # type: ignore[import-not-found]
+    from splunklib.modularinput import (
         Argument,
         Scheme,
         Script,

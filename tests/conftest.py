@@ -16,6 +16,21 @@ sys.path.insert(0, str(bin_dir))
 sys.path.insert(0, str(lib_dir))
 
 import geoip_command  # noqa: E402  (needs the sys.path setup above)
+import geoip_utils  # noqa: E402  (needs the sys.path setup above)
+
+
+@pytest.fixture(autouse=True)
+def _force_solnlib_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test in the no-solnlib fallback mode.
+
+    solnlib is installed in the dev venv so that the import-surface test
+    can verify geoip_utils binds the real names (its try/except
+    ImportError would otherwise silently absorb a renamed class). But no
+    splunkd runs here, so any test that reached a solnlib code path
+    unpatched would try REST against localhost. Tests that exercise
+    solnlib paths patch _HAS_SOLNLIB (and conf_manager) themselves.
+    """
+    monkeypatch.setattr(geoip_utils, "_HAS_SOLNLIB", False)
 
 
 @pytest.fixture(autouse=True)

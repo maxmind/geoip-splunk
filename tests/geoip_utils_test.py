@@ -6,7 +6,7 @@ import errno
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,6 +18,25 @@ if TYPE_CHECKING:
 repo_root = Path(__file__).parent.parent
 lib_dir = repo_root / "geoip" / "package" / "lib"
 sys.path.insert(0, str(lib_dir))
+
+
+def test_solnlib_import_surface() -> None:
+    """geoip_utils binds its solnlib names inside a try/except
+    ImportError, so a renamed or moved name would silently set
+    _HAS_SOLNLIB = False app-wide while every mock-based test kept
+    passing. solnlib is installed in the dev venv so this test can check
+    the bound names are the real ones. It must not import solnlib
+    itself: other test files replace the solnlib entries in sys.modules
+    with mocks at collection time."""
+    import geoip_utils  # noqa: PLC0415
+
+    # Through Any: mypy objects to the implicit re-exports, but reaching
+    # the module attributes as bound is the point of the test. The
+    # attributes only exist when the import succeeded.
+    utils: Any = geoip_utils
+    assert utils.ConfManagerException.__module__ == "solnlib.soln_exceptions"
+    assert utils.conf_manager.__name__ == "solnlib.conf_manager"
+    assert utils.solnlib_log.__name__ == "solnlib.log"
 
 
 def test_get_database_directory_with_env_override(
