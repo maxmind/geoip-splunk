@@ -228,6 +228,10 @@ python.version = python3
 python.required = 3.13
 ```
 
+A command in `globalConfig.json` with no stanza here is silently
+unregistered; `tests/commands_conf_test.py` guards the two files against
+drift.
+
 - `chunked = true` is required for streaming commands using the Splunk SDK
 - `local = true` is an SCP1-only setting and is **ignored** for chunked (SCP2) commands. It is left in as a harmless fallback, but it does **not** keep the command on the search head. See "Command distribution" below for what actually works.
 - `python.version` is for backward compatibility with Splunk < 10.2
