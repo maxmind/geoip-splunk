@@ -394,3 +394,42 @@ def test_get_configured_database_names_raises_without_solnlib() -> None:
         pytest.raises(RuntimeError, match="solnlib is unavailable"),
     ):
         geoip_utils.get_configured_database_names("test_session_key")
+
+
+def test_validate_account_credentials_accepts_the_updater_form() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    result = geoip_utils.validate_account_credentials("123456", "abcdef0123456789")
+
+    assert result == (123456, "abcdef0123456789")
+
+
+@pytest.mark.parametrize(
+    ("account_id", "license_key"),
+    [
+        (None, "abcdef0123456789"),
+        ("", "abcdef0123456789"),
+        ("123456", None),
+        ("123456", ""),
+    ],
+)
+def test_validate_account_credentials_rejects_missing_values(
+    account_id: str | None,
+    license_key: str | None,
+) -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with pytest.raises(ValueError, match="not configured"):
+        geoip_utils.validate_account_credentials(account_id, license_key)
+
+
+@pytest.mark.parametrize("account_id", ["12345a", " 123", "1.5", "-1"])
+def test_validate_account_credentials_rejects_a_non_numeric_id(
+    account_id: str,
+) -> None:
+    """No leniency the updater does not have: it does not strip, so a
+    padded account ID fails every update and must fail here too."""
+    import geoip_utils  # noqa: PLC0415
+
+    with pytest.raises(ValueError, match="must be a number"):
+        geoip_utils.validate_account_credentials(account_id, "abcdef0123456789")

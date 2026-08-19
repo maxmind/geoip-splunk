@@ -321,6 +321,38 @@ def get_configured_database_names(session_key: str) -> list[str]:
     return [name for name in conf.get_all(only_current_app=True) if name != "default"]
 
 
+def validate_account_credentials(
+    account_id: str | None,
+    license_key: str | None,
+) -> tuple[int, str]:
+    """Validate decrypted account values the way the updater accepts them.
+
+    The one home of the acceptance policy (both values present, account
+    ID numeric), so every reader of the account stanza agrees on what
+    counts as usable credentials.
+
+    Raises:
+        ValueError: If a value is missing or the account ID is not a
+            number, with a message telling the user what to fix.
+
+    """
+    if not account_id or not license_key:
+        msg = (
+            "MaxMind account credentials not configured. "
+            "Go to Configuration > MaxMind Account to enter your credentials."
+        )
+        raise ValueError(msg)
+
+    if not account_id.isdigit():
+        msg = (
+            f"MaxMind account ID must be a number, got '{account_id}'. "
+            "Go to Configuration > MaxMind Account to correct your account ID."
+        )
+        raise ValueError(msg)
+
+    return int(account_id), license_key
+
+
 def get_fallback_logger() -> logging.Logger:
     """Get a basic logger for use when no session key is available.
 

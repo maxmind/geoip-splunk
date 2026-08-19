@@ -23,6 +23,7 @@ from geoip_utils import (
     get_fallback_logger,
     get_logger,
     migrate_legacy_databases,
+    validate_account_credentials,
 )
 from pygeoipupdate import Config, Updater
 from pygeoipupdate.errors import GeoIPUpdateError
@@ -146,20 +147,10 @@ def _get_account_credentials(session_key: str) -> tuple[int, str]:
     except (ConfManagerException, ConfStanzaNotExistException) as e:
         raise ValueError(msg) from e
 
-    account_id_str = account_stanza.get("account_id")
-    license_key = account_stanza.get("license_key")
-
-    if not account_id_str or not license_key:
-        raise ValueError(msg)
-
-    if not account_id_str.isdigit():
-        msg = (
-            f"MaxMind account ID must be a number, got '{account_id_str}'. "
-            "Go to Configuration > MaxMind Account to correct your account ID."
-        )
-        raise ValueError(msg)
-
-    return int(account_id_str), license_key
+    return validate_account_credentials(
+        account_stanza.get("account_id"),
+        account_stanza.get("license_key"),
+    )
 
 
 def _get_database_names(session_key: str) -> list[str]:
