@@ -18,6 +18,12 @@ except ImportError:
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
 
+# The realm UCC's REST handlers store the encrypted account fields under in
+# passwords.conf. solnlib needs it to decrypt the account stanza - reading
+# the stanza without it raises CredentialNotExistException (verified on a
+# live cluster) instead of returning the masked values.
+SETTINGS_CREDENTIAL_REALM = f"__REST_CREDENTIAL__#{APP_NAME}#configs/conf-{CONF_NAME}"
+
 # Whether the MaxMind databases ride the knowledge bundle to indexers is
 # controlled through this [replicationAllowlist] key in distsearch.conf. The
 # shipped default (default/distsearch.conf) is a pattern that matches no

@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from geoip_utils import (
     APP_NAME,
+    SETTINGS_CREDENTIAL_REALM,
     get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
@@ -138,7 +139,7 @@ def _get_account_credentials(session_key: str) -> tuple[int, str]:
         cfm = conf_manager.ConfManager(
             session_key,
             APP_NAME,
-            realm=f"__REST_CREDENTIAL__#{APP_NAME}#configs/conf-{APP_NAME}_settings",
+            realm=SETTINGS_CREDENTIAL_REALM,
         )
         conf = cfm.get_conf(f"{APP_NAME}_settings")
         account_stanza = conf.get("account", only_current_app=True)
