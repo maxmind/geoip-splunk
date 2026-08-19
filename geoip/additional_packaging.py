@@ -7,8 +7,18 @@ and the build still exits 0 with the rewrite below silently skipped.
 build.sh verifies the rewrite afterwards, outside that try, as a backstop.
 """
 
+import json
 import shutil
 from pathlib import Path
+
+_GLOBAL_CONFIG_PATH = Path(__file__).resolve().parent / "globalConfig.json"
+
+# UCC's wrapper templates by commandType: the entry point the wrapper
+# imports from the command's source module, and the line of the generated
+# wrapper the prepare() method is injected before.
+_COMMAND_ENTRY_POINTS = {
+    "streaming": ("stream", "    def stream(self, events):"),
+}
 
 
 def additional_packaging(ta_name: str) -> None:
@@ -26,34 +36,47 @@ def additional_packaging(ta_name: str) -> None:
 
 
 def make_command_distribution_toggleable(output_dir: Path) -> None:
-    """Let the geoip command decide at search time whether to distribute.
+    """Let the commands decide at search time whether to distribute.
 
     Under Search Command Protocol v2 (``chunked = true``), whether Splunk
-    pushes the command to the indexers is controlled by the ``distributed``
+    pushes a command to the indexers is controlled by the ``distributed``
     configuration setting in the command's getinfo reply, not by
     commands.conf (``local = true`` is SCP1-only and ignored). The Splunk
     SDK calls a command's ``prepare()`` method before writing that reply,
-    so a prepare() that sets ``self.configuration.distributed`` from the
-    "Run on indexers" setting decides distribution per search.
+    so a prepare() that sets ``self.configuration.distributed`` decides
+    distribution per search: the geoip command reads the "Run on indexers"
+    setting.
 
-    UCC generates the command wrapper (bin/geoip.py) from a fixed template
-    with no extension point, so this hook rewrites the generated wrapper:
+    UCC generates the command wrappers (bin/geoip.py) from fixed templates
+    with no extension point, so this hook rewrites the generated wrappers:
 
-    - import ``prepare`` from geoip_command.py alongside ``stream``
+    - import ``prepare`` from the command's source module alongside its
+      entry point
     - inject a ``prepare()`` method that delegates to it
     - change the bare ``@Configuration()`` decorator to
       ``@Configuration(distributed=False)`` as a fail-safe default in case
       prepare() somehow does not run (search-head-only is always safe)
 
-    Each marker is verified so a UCC template change fails the build loudly
-    rather than silently regressing.
+    The command list is read from globalConfig.json rather than hardcoded,
+    so a command added there cannot ship without the rewrite - a
+    StreamingCommand wrapper left with UCC's bare ``@Configuration()``
+    reports distributable streaming and is dispatched to indexers whose
+    bundle carries almost none of lib/. A commandType this map does not
+    cover raises KeyError (which UCC's except ImportError does not
+    swallow), and each marker is verified so a UCC template change fails
+    the build loudly rather than silently regressing.
     """
-    _inject_prepare(
-        output_dir / "bin" / "geoip.py",
-        import_marker="from geoip_command import stream",
-        import_replacement="from geoip_command import prepare, stream",
-        method_marker="    def stream(self, events):",
-    )
+    commands = json.loads(_GLOBAL_CONFIG_PATH.read_text())["customSearchCommand"]
+    for command in commands:
+        entry_point, method_marker = _COMMAND_ENTRY_POINTS[command["commandType"]]
+        module = command["fileName"].removesuffix(".py")
+        imports = ", ".join(sorted([entry_point, "prepare"]))
+        _inject_prepare(
+            output_dir / "bin" / (command["commandName"] + ".py"),
+            import_marker=f"from {module} import {entry_point}",
+            import_replacement=f"from {module} import {imports}",
+            method_marker=method_marker,
+        )
 
 
 def _inject_prepare(

@@ -1,6 +1,7 @@
 """Tests for the UCC post-build hook in geoip/additional_packaging.py."""
 
 import importlib.util
+import json
 from pathlib import Path
 from types import ModuleType
 
@@ -79,3 +80,32 @@ def test_make_command_distribution_toggleable_raises_without_marker(
 
     with pytest.raises(RuntimeError, match="template may have changed"):
         _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
+
+
+def test_make_command_distribution_toggleable_rejects_unknown_command_type(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commandType outside the entry-point map must fail the build (with
+    KeyError, which UCC's except ImportError does not swallow), never ship
+    that command's wrapper without the rewrite."""
+    _write_wrapper(tmp_path, _GENERATED_WRAPPER)
+    config = tmp_path / "globalConfig.json"
+    config.write_text(
+        json.dumps(
+            {
+                "customSearchCommand": [
+                    {
+                        "commandName": "geoip",
+                        "fileName": "geoip_command.py",
+                        "commandType": "reporting",
+                    }
+                ]
+            }
+        )
+    )
+    module = _load_additional_packaging()
+    monkeypatch.setattr(module, "_GLOBAL_CONFIG_PATH", config)
+
+    with pytest.raises(KeyError):
+        module.make_command_distribution_toggleable(tmp_path)
