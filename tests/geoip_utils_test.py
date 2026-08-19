@@ -396,6 +396,91 @@ def test_get_configured_database_names_raises_without_solnlib() -> None:
         geoip_utils.get_configured_database_names("test_session_key")
 
 
+def test_has_account_credentials_true_when_both_fields_set() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        # The realm makes solnlib return the stanza decrypted, so the
+        # values here look like real credentials, not masked ones.
+        conf.get.return_value = {
+            "account_id": "123456",
+            "license_key": "abcdef0123456789",
+        }
+
+        result = geoip_utils.has_account_credentials("test_session_key")
+
+    manager_mod.ConfManager.assert_called_once_with(
+        "test_session_key",
+        "geoip",
+        realm="__REST_CREDENTIAL__#geoip#configs/conf-geoip_settings",
+    )
+    conf.get.assert_called_once_with("account", only_current_app=True)
+    assert result is True
+
+
+@pytest.mark.parametrize(
+    "stanza",
+    [
+        {},
+        {"account_id": "123456"},
+        {"license_key": "abcdef0123456789"},
+        {"account_id": "", "license_key": "abcdef0123456789"},
+        # The updater rejects a non-numeric account ID (it does not
+        # strip either), so these are not usable credentials even though
+        # both fields are set.
+        {"account_id": " 123456", "license_key": "abcdef0123456789"},
+        {"account_id": "12345a", "license_key": "abcdef0123456789"},
+        {"account_id": "123456", "license_key": ""},
+        {"account_id": None, "license_key": "abcdef0123456789"},
+    ],
+)
+def test_has_account_credentials_false_when_a_field_is_missing_or_invalid(
+    stanza: dict[str, object],
+) -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = stanza
+
+        assert geoip_utils.has_account_credentials("test_session_key") is False
+
+
+def test_has_account_credentials_raises_when_the_read_fails() -> None:
+    """The shipped default/geoip_settings.conf carries an empty account
+    stanza, so a failed read means something is broken, not a fresh
+    install; the caller decides the fallback."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = RuntimeError(
+            "splunkd unreachable"
+        )
+
+        with pytest.raises(RuntimeError, match="splunkd unreachable"):
+            geoip_utils.has_account_credentials("test_session_key")
+
+
+def test_has_account_credentials_raises_without_solnlib() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.has_account_credentials("test_session_key")
+
+
 def test_validate_account_credentials_accepts_the_updater_form() -> None:
     import geoip_utils  # noqa: PLC0415
 

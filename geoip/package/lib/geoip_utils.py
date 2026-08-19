@@ -321,6 +321,46 @@ def get_configured_database_names(session_key: str) -> list[str]:
     return [name for name in conf.get_all(only_current_app=True) if name != "default"]
 
 
+def has_account_credentials(session_key: str) -> bool:
+    """Whether usable MaxMind credentials are configured, as a boolean only.
+
+    Reads the account stanza of geoip_settings.conf through solnlib with
+    the credential realm, like the updater's _get_account_credentials -
+    solnlib needs the realm to decrypt the stanza's encrypted fields, and
+    without it the read raises once credentials are saved (see
+    SETTINGS_CREDENTIAL_REALM). The decrypted values only ever feed the
+    boolean; they are never returned or logged.
+
+    Applies validate_account_credentials - exactly the updater's
+    acceptance checks - so a credential the updater rejects (say a typo'd
+    account ID, which fails every update) does not report a clean bill of
+    health.
+
+    Raises on any failure, including solnlib being unavailable; callers
+    decide the fallback. The account stanza always exists - the shipped
+    default/geoip_settings.conf carries it with empty values - so a
+    failed read means something is broken, not a fresh install.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_settings.conf"
+        raise RuntimeError(msg)
+
+    cfm = conf_manager.ConfManager(
+        session_key,
+        APP_NAME,
+        realm=SETTINGS_CREDENTIAL_REALM,
+    )
+    stanza = cfm.get_conf(CONF_NAME).get("account", only_current_app=True)
+    try:
+        validate_account_credentials(
+            stanza.get("account_id"),
+            stanza.get("license_key"),
+        )
+    except ValueError:
+        return False
+    return True
+
+
 def validate_account_credentials(
     account_id: str | None,
     license_key: str | None,
