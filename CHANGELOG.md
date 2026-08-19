@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 (unreleased)
+
+* Add the `geoipdebug` diagnostic search command. It generates one event
+  per configured database with its build time, type, and file details, plus
+  events with the app, Splunk, and Python versions and the app's non-secret
+  settings. With `indexers=true` it runs on the indexers and reports the
+  database copies their knowledge bundle carries.
+
 ## 1.2.0 (2026-07-29)
 
 * Revert the scripted-input experiment from 1.1.3. The scripted input did

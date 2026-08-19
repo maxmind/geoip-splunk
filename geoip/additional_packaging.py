@@ -18,6 +18,7 @@ _GLOBAL_CONFIG_PATH = Path(__file__).resolve().parent / "globalConfig.json"
 # wrapper the prepare() method is injected before.
 _COMMAND_ENTRY_POINTS = {
     "streaming": ("stream", "    def stream(self, events):"),
+    "generating": ("generate", "    def generate(self):"),
 }
 
 
@@ -45,10 +46,12 @@ def make_command_distribution_toggleable(output_dir: Path) -> None:
     SDK calls a command's ``prepare()`` method before writing that reply,
     so a prepare() that sets ``self.configuration.distributed`` decides
     distribution per search: the geoip command reads the "Run on indexers"
-    setting.
+    setting, and the geoipdebug command reads its own ``indexers``
+    argument.
 
-    UCC generates the command wrappers (bin/geoip.py) from fixed templates
-    with no extension point, so this hook rewrites the generated wrappers:
+    UCC generates the command wrappers (bin/geoip.py, bin/geoipdebug.py)
+    from fixed templates with no extension point, so this hook rewrites
+    the generated wrappers:
 
     - import ``prepare`` from the command's source module alongside its
       entry point

@@ -143,6 +143,21 @@
                     "required": true
                 }
             ]
+        },
+        {
+            "commandName": "geoipdebug",
+            "fileName": "geoipdebug_command.py",
+            "commandType": "generating",
+            "arguments": [
+                {
+                    "name": "indexers",
+                    "validate": {
+                        "type": "Boolean"
+                    },
+                    "required": false,
+                    "defaultValue": "false"
+                }
+            ]
         }
     ]
 }

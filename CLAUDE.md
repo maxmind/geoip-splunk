@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Splunk App for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`geoip`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.).
+This is a Splunk App for MaxMind GeoIP lookups, built using the Splunk UCC (Universal Configuration Console) framework. It provides a custom streaming search command (`geoip`) that enriches events with data from MaxMind databases (country, city, anonymous IP, ISP, etc.), and a diagnostic generating command (`geoipdebug`).
 
 ## The geoip Command
 
@@ -42,6 +42,75 @@ Database readers are cached at module level in `_readers`. This means:
 - Databases are opened once and reused across events (good for performance)
 - Splunk spawns a fresh Python process for each search, so the cache starts empty
 - If the updater writes a new database file between searches, the next search automatically loads it
+
+## The geoipdebug Command
+
+```
+| geoipdebug [indexers=<bool>]
+```
+
+A generating command (source `geoipdebug_command.py`, one event per item with a
+`component` field) that reports diagnostic information so users can see
+which database versions a node uses (GitHub #76) and send us a support
+baseline:
+
+- `component=database`: one event per configured database (from
+  `geoip_databases.conf` via `get_configured_database_names`) with
+  `present`, `build_time` (mmdb metadata `build_epoch`), `database_type`,
+  and file path/size/mtime. On an indexer - or if the conf read fails -
+  it lists the `*.mmdb` files in the database directory instead, which on
+  an indexer is what the knowledge bundle carries. `database_source`
+  (`configured`/`directory`) says which of the two produced the event,
+  and configured names get the same `is_valid_database_name` guard as the
+  geoip command before becoming paths.
+- `component=system`: app version (parsed from `default/app.conf`, where
+  UCC writes it at build time; `build.sh` verifies the built file has the
+  key, since the source tree's does not and tests monkeypatch the path),
+  Splunk version (from `searchinfo.splunk_version`), Python version,
+  database directory, `on_indexer`.
+- `component=settings` (search head only): `loglevel` (the raw configured
+  value via `get_setting`, deliberately not solnlib's `get_log_level`,
+  which swallows failed reads into the INFO default), `run_on_indexers`,
+  configured database list, and `credentials_configured` as a boolean -
+  the credential values are read (decrypted) only inside
+  `has_account_credentials` to compute it and are never output. UCC ships
+  `default/geoip_settings.conf` (generated from the globalConfig
+  defaults: loglevel INFO, run_on_indexers 0, an empty account stanza)
+  and the conf endpoint merges default/ and local/, so settings reads
+  find values on any healthy install; a failed read is a fault and
+  reports `unknown`. Boolean event fields are emitted as the strings
+  true/false via `_bool_text` - the SDK writes Python bools as 1/0, and
+  mixed with `unknown` the field would have no stable type.
+
+Every event carries `hostname`; nothing takes the search down (a broken
+database gets an `error` field, a failed settings read `unknown`).
+
+Two behaviors verified on a live cluster:
+
+- With `indexers=true` the command runs on the search head AND on each
+  search peer - the results merge both, distinguished by `hostname`. On a
+  peer it emits its system event and one database event per `.mmdb` in
+  the bundle (none while "Run on indexers" is off), and no settings
+  event.
+- The SDK's record writer locks the output field set to the keys of the
+  first record in each output chunk (splunklib
+  `internals.RecordWriter._write_record`; `RecordWriterV2._clear` resets
+  it per chunk), so `generate()` fills every event with the union of all
+  events' fields - without that, the components emitted after the first
+  silently lose the fields the first does not have.
+
+Distribution is decided by the command's own `indexers` argument (default
+false = search-head-only), not the "Run on indexers" setting: `prepare()`
+in `geoipdebug_command.py` sets `configuration.distributed` from the parsed
+option (the SDK parses arguments before calling `prepare()`), with no REST
+read. Note `GeneratingCommand` differs from `StreamingCommand` here: its
+SCP2 `distributed` already defaults to False, so the
+`@Configuration(distributed=False)` the packaging hook writes is
+belt-and-braces, not load-bearing.
+
+The command name has no underscore because UCC validates `commandName`
+against `^[a-z0-9]+$` (and requires it to differ from `fileName` minus
+`.py`).
 
 ## Database Storage and Updates
 
@@ -226,13 +295,19 @@ chunked = true
 local = true
 python.version = python3
 python.required = 3.13
+
+[geoipdebug]
+filename = geoipdebug.py
+chunked = true
+python.version = python3
+python.required = 3.13
 ```
 
 A command in `globalConfig.json` with no stanza here is silently
 unregistered; `tests/commands_conf_test.py` guards the two files against
 drift.
 
-- `chunked = true` is required for streaming commands using the Splunk SDK
+- `chunked = true` is required for streaming and generating commands using the Splunk SDK
 - `local = true` is an SCP1-only setting and is **ignored** for chunked (SCP2) commands. It is left in as a harmless fallback, but it does **not** keep the command on the search head. See "Command distribution" below for what actually works.
 - `python.version` is for backward compatibility with Splunk < 10.2
 - `python.required` is used by Splunk 10.2+ (takes precedence over `python.version`)
@@ -263,15 +338,19 @@ which the SDK calls before writing the getinfo reply:
   do not exist on peers, where the app runs from the knowledge bundle under
   `var/run/searchpeers/`, not `etc/apps/`.
 
-UCC has no globalConfig knob for any of this and its custom-command template
-hardcodes `@Configuration()` with no extension point, so the post-build hook
-in `additional_packaging.py` (`make_command_distribution_toggleable`)
-rewrites the generated `bin/geoip.py`: it imports `prepare` from
-`geoip_command.py`, injects a `prepare()` method, and changes the decorator
-to `@Configuration(distributed=False)` as a fail-safe default in case
-`prepare()` somehow does not run. The hook raises if any marker is missing,
-so a UCC template change fails the build loudly rather than silently
-regressing.
+UCC has no globalConfig knob for any of this and its custom-command
+templates hardcode `@Configuration()` with no extension point, so the
+post-build hook in `additional_packaging.py`
+(`make_command_distribution_toggleable`) rewrites the generated wrappers
+(`bin/geoip.py` and `bin/geoipdebug.py`): it imports `prepare` from the
+command's source module, injects a `prepare()` method, and changes the
+decorator to `@Configuration(distributed=False)` as a fail-safe default in
+case `prepare()` somehow does not run. The command list comes from
+`globalConfig.json` (commandType picks the entry point to wrap), so a
+command added there cannot ship without the rewrite. The hook raises if
+any marker is missing, so a UCC template change fails the build loudly
+rather than silently regressing; `build.sh` re-checks the markers as a
+backstop because UCC swallows `ImportError` from the hook.
 
 ### package/default/distsearch.conf and server.conf
 
@@ -382,7 +461,7 @@ To update all dependencies, use the `update-deps` skill (`.claude/skills/update-
 - UCC automatically sets `python.version = python3` in generated `commands.conf` and `inputs.conf`
 - Warning about "not auto generated by UCC framework" for custom settings is expected
 - `ucc-gen init` creates a `README.md` in the app source directory, but it's not needed and doesn't get included in the output package. Use `package/README.md` for end-user documentation instead.
-- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`. It also rewrites the generated `bin/geoip.py` to inject a `prepare()` method and a fail-safe `distributed=False` default (see "Command distribution").
+- `additional_packaging.py` is a UCC post-build hook called by `ucc-gen build`. It copies `LICENSE-MIT` and `LICENSE-APACHE` from the repo root into `output/geoip/LICENSES/`, and `README.md` into `output/geoip/`. It also rewrites the generated command wrappers (`bin/geoip.py`, `bin/geoipdebug.py`) to inject a `prepare()` method and a fail-safe `distributed=False` default (see "Command distribution").
 
 ### Custom Search Command File Naming
 
@@ -402,6 +481,8 @@ class GeoipCommand(StreamingCommand):
 ```
 
 So the source file (`geoip_command.py`) and wrapper (`geoip.py`) are intentionally different files.
+
+UCC validates `commandName` against `^[a-z0-9]+$` (no underscores, hyphens, or uppercase) and requires it to differ from `fileName` minus `.py` - hence `geoipdebug` with source `geoipdebug_command.py`.
 
 ### Custom REST Handlers
 
