@@ -724,6 +724,14 @@ modules (search command, modular input, REST handlers). It's decorated with
 `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level
 setting.
 
+`get_fallback_logger()` (used when there is no session key or `get_logger`'s
+REST read fails) is a different logger object from solnlib's, which is named
+after its log file path: fallback records go to stderr only - search.log for
+search processes, splunkd.log otherwise - and never to `geoip.log`. It carries
+its own stderr handler with `propagate = False`, so records print exactly once
+whether the process gave the root logger a NullHandler (the app's REST handlers)
+or a stderr handler (splunklib's searchcommands import).
+
 ### Key Points
 
 - **Log file location**: `$SPLUNK_HOME/var/log/splunk/{logger_name}.log` - use

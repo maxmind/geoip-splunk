@@ -559,13 +559,36 @@ def validate_account_credentials(
 
 
 def get_fallback_logger() -> logging.Logger:
-    """Get a basic logger for use when no session key is available.
+    """Get a basic logger for use when the configured logger is unavailable.
 
-    The log level is hardcoded to INFO since without a session key we
-    cannot read the user's configured level from Splunk's REST API.
+    Used when there is no session key, when get_logger's conf read fails,
+    and by get_logger itself where solnlib is unavailable (every indexer).
+    The log level is hardcoded to INFO since the user's configured level
+    comes over Splunk's REST API - the thing that is missing or broken in
+    all three cases.
+
+    The logger gets a stderr handler if it has none, and stops propagating
+    to the root logger. What the root logger does with a record depends on
+    the process: the app's REST handler entry points give it only a
+    NullHandler, so propagated records were discarded there - the whole
+    reason this handler exists - while splunklib's searchcommands package
+    gives it a stderr handler at import time, so propagation there would
+    write every record twice. An own handler plus no propagation gives
+    exactly one stderr copy in both; splunkd keeps stderr - search.log for
+    search processes, splunkd.log otherwise. This is a different logger
+    object from solnlib's, which is named after its log file path, not
+    APP_NAME - so these records reach stderr only, never geoip.log. The
+    handlers guard exists so repeated calls do not stack handlers.
     """
     logger = logging.getLogger(APP_NAME)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        logger.addHandler(handler)
     return logger
 
 

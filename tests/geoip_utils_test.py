@@ -815,3 +815,25 @@ def test_sync_replication_marker_never_raises(
     geoip_utils.sync_replication_marker(logger, run_on_indexers=True)
 
     logger.exception.assert_called_once()
+
+
+def test_get_fallback_logger_writes_records_exactly_once() -> None:
+    """The fallback logger exists for nodes where conf reads are broken.
+    It needs a handler of its own (the REST handler processes give the
+    root logger only a NullHandler, so propagated records vanish there)
+    and must not also propagate (search-command processes give the root
+    logger a stderr handler, so propagated records print twice there).
+    It must also not stack a new handler per call: several modules call
+    it repeatedly."""
+    import geoip_utils  # noqa: PLC0415
+
+    logger = geoip_utils.get_fallback_logger()
+    # A copy, since a repeated call must be compared against a snapshot,
+    # not against the same live list (pytest's caplog can add handlers of
+    # its own, so an exact count would be fragile).
+    handlers_after_first = list(logger.handlers)
+    geoip_utils.get_fallback_logger()
+
+    assert handlers_after_first
+    assert logger.handlers == handlers_after_first
+    assert logger.propagate is False
