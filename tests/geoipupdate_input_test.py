@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import geoip_utils
 import pytest
 
 if TYPE_CHECKING:
@@ -125,7 +126,7 @@ def test_stream_events_handles_missing_credentials(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             side_effect=ValueError("Credentials not configured"),
@@ -154,7 +155,7 @@ def test_stream_events_migrates_even_when_unconfigured(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch("geoipupdate_input.migrate_legacy_databases") as migrate_mock,
         patch(
             "geoipupdate_input._get_account_credentials",
@@ -170,9 +171,10 @@ def test_stream_events_survives_a_broken_logger(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """get_logger reads the log level over REST, so it can raise - and a
-    member where conf reads are broken is precisely one the migration and
-    the marker sync must still run on."""
+    """get_logger reads the log level over REST, so it can raise - and
+    the migration, which needs no REST, must still run on a member where
+    conf reads are broken. Broken at the geoip_utils level so the real
+    get_logger_or_fallback absorbs the raise."""
     monkeypatch.setenv("MAXMIND_DB_DIR", str(tmp_path))
 
     input_obj = GeoIPUpdateInput()
@@ -180,14 +182,12 @@ def test_stream_events_survives_a_broken_logger(
     inputs = MagicMock()
     inputs.metadata = {"session_key": "test_session_key"}
 
-    fallback = MagicMock(spec=logging.Logger)
-
     with (
-        patch(
-            "geoipupdate_input.get_logger",
+        patch.object(
+            geoip_utils,
+            "get_logger",
             side_effect=RuntimeError("splunkd unreachable"),
         ),
-        patch("geoipupdate_input.get_fallback_logger", return_value=fallback),
         patch("geoipupdate_input.migrate_legacy_databases") as migrate_mock,
         patch("geoipupdate_input._sync_replication_marker_from_settings") as sync_mock,
         patch(
@@ -197,6 +197,7 @@ def test_stream_events_survives_a_broken_logger(
     ):
         input_obj.stream_events(inputs, None)
 
+    fallback = geoip_utils.get_fallback_logger()
     migrate_mock.assert_called_once_with(fallback)
     sync_mock.assert_called_once_with("test_session_key", fallback)
 
@@ -218,7 +219,7 @@ def test_stream_events_syncs_the_marker_even_when_unconfigured(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input.get_run_on_indexers_setting",
             return_value="1",
@@ -271,7 +272,7 @@ def test_stream_events_handles_missing_databases(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "key"),
@@ -302,7 +303,7 @@ def test_stream_events_handles_geoipupdate_error(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "key"),
@@ -339,7 +340,7 @@ def test_stream_events_handles_unexpected_error(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "key"),
@@ -379,7 +380,7 @@ def test_stream_events_creates_database_directory(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "key"),
@@ -413,7 +414,7 @@ def test_stream_events_logs_success(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "key"),
@@ -651,7 +652,7 @@ def test_stream_events_full_flow_downloads_database(
     mock_logger = MagicMock(spec=logging.Logger)
 
     with (
-        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch("geoipupdate_input.get_logger_or_fallback", return_value=mock_logger),
         patch(
             "geoipupdate_input._get_account_credentials",
             return_value=(TEST_ACCOUNT_ID, "test_key"),

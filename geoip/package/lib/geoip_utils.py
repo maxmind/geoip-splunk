@@ -566,6 +566,25 @@ def validate_account_credentials(
     return int(account_id), license_key
 
 
+def get_logger_or_fallback(session_key: str) -> logging.Logger:
+    """Get the app logger, or the basic fallback instead of raising.
+
+    get_logger reads its log level from the app's conf over REST, so on
+    a node where conf reads fail (splunkd unreachable, expired session
+    key) it may raise too; the never-fail paths (search prepare,
+    diagnostics, settings saves, update runs) need a logger regardless.
+    The one home of that guard, so no caller re-implements it subtly
+    differently. The failed lookup itself is logged through the fallback,
+    which touches nothing remote.
+    """
+    try:
+        return get_logger(session_key)
+    except Exception:
+        logger = get_fallback_logger()
+        logger.exception("Could not build the configured logger")
+        return logger
+
+
 def get_fallback_logger() -> logging.Logger:
     """Get a basic logger for use when the configured logger is unavailable.
 

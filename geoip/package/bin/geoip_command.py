@@ -1,7 +1,6 @@
 """MaxMind database lookup streaming command for Splunk."""
 
 import contextlib
-import logging
 import os
 import sys
 from collections.abc import Iterator
@@ -14,8 +13,8 @@ import maxminddb
 from geoip_utils import (
     fill_missing_event_fields,
     get_database_directory,
-    get_fallback_logger,
     get_logger,
+    get_logger_or_fallback,
     get_run_on_indexers_setting,
     is_truthy,
     is_valid_database_name,
@@ -104,9 +103,9 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
     always safe since the databases live there. Reading the session key is
     inside the try for the same reason - the promise is worth nothing if an
     unexpected searchinfo kills the search on the way in. Logging the
-    failure must not take it down either: get_logger reads its log level
-    from this same conf over REST, so whatever broke the settings read
-    (splunkd unreachable, expired session key) may make it raise too.
+    failure must not take it down either, which is why the logger comes
+    from get_logger_or_fallback: whatever broke the settings read may
+    break get_logger's conf read the same way.
 
     Someone who deliberately enabled "Run on indexers" gets correct
     results from the wrong topology here, so the reverted setting is also
@@ -131,7 +130,7 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
         session_key = command.metadata.searchinfo.session_key
         value = get_run_on_indexers_setting(session_key)
     except Exception:  # any failure means don't distribute
-        logger = _get_logger(session_key)
+        logger = get_logger_or_fallback(session_key)
         logger.exception(
             "Failed to read the run_on_indexers setting; "
             "running on the search head only"
@@ -144,25 +143,10 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
         return False
     enabled = is_truthy(value)
     sync_replication_marker(
-        lambda: _get_logger(session_key),
+        lambda: get_logger_or_fallback(session_key),
         run_on_indexers=enabled,
     )
     return enabled
-
-
-def _get_logger(session_key: str) -> logging.Logger:
-    """Get the app logger without letting the lookup itself raise.
-
-    get_logger reads its log level from the app's conf over REST, so on
-    a node where conf reads fail (splunkd unreachable, expired session
-    key) it may raise too; fall back to a basic logger. Same helper as
-    geoipdebug_command's - kept module-local so tests can patch each
-    module's get_logger independently.
-    """
-    try:
-        return get_logger(session_key)
-    except Exception:  # noqa: BLE001 - see the docstring
-        return get_fallback_logger()
 
 
 def stream(
@@ -317,7 +301,10 @@ def _get_reader(
             # After an upgrade the database may still be in the
             # pre-1.2.0 location. Never on an indexer: the app runs from
             # the knowledge bundle there and has no legacy directory.
-            migrate_legacy_databases(get_logger(session_key))
+            # Through the guarded helper: a raise from get_logger here
+            # would kill the search with an opaque traceback instead of
+            # the tailored missing-database message below.
+            migrate_legacy_databases(get_logger_or_fallback(session_key))
         if not db_path.exists():
             if on_indexer:
                 msg = (

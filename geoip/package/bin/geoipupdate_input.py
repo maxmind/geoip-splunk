@@ -21,7 +21,7 @@ from geoip_utils import (
     get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
-    get_logger,
+    get_logger_or_fallback,
     get_run_on_indexers_setting,
     is_truthy,
     migrate_legacy_databases,
@@ -90,18 +90,14 @@ def run_database_update(session_key: str) -> None:
         session_key: Splunk session key for REST API calls.
 
     """
-    # Guarded like the other get_logger call sites: it reads the log level
-    # over REST, so on a member where conf reads are broken it raises -
-    # and the migration below, which needs no REST, must still run there.
+    # Through the guarded helper: get_logger reads the log level over
+    # REST, so on a member where conf reads are broken it raises - and
+    # the migration below, which needs no REST, must still run there.
     # (The marker sync cannot help on such a member - its own settings
     # read fails the same way and it bails - but the run must still reach
     # it, and the configuration checks after it, so each can log what it
     # skipped.)
-    try:
-        logger = get_logger(session_key)
-    except Exception:
-        logger = get_fallback_logger()
-        logger.exception("Could not build the configured logger")
+    logger = get_logger_or_fallback(session_key)
 
     # Before the configuration checks: databases left in the pre-1.2.0
     # location should move even while the input is unconfigured.
@@ -138,7 +134,9 @@ def run_database_update(session_key: str) -> None:
         logger.exception("Unexpected error during database update")
 
 
-def _sync_replication_marker_from_settings(session_key: str, logger: logging.Logger) -> None:
+def _sync_replication_marker_from_settings(
+    session_key: str, logger: logging.Logger
+) -> None:
     """Sync the bundle state marker to the "Run on indexers" setting.
 
     The settings handler writes the marker on save, but only on the search

@@ -311,7 +311,7 @@ def test_get_app_version_returns_unknown_when_unreadable(
     monkeypatch.setattr(geoipdebug_command, "_APP_CONF_PATH", app_conf)
 
     with patch.object(
-        geoipdebug_command, "get_logger", return_value=MagicMock()
+        geoipdebug_command, "get_logger_or_fallback", return_value=MagicMock()
     ) as logger_mock:
         result = geoipdebug_command._get_app_version("test_session_key")
 
@@ -460,7 +460,9 @@ def test_settings_event_degrades_to_unknown_on_failures() -> None:
             geoipdebug_command, "get_configured_database_names", return_value=[]
         ),
         patch.object(
-            geoipdebug_command, "get_logger", side_effect=RuntimeError("no splunkd")
+            geoipdebug_command,
+            "get_logger_or_fallback",
+            return_value=MagicMock(),
         ),
         patch.object(
             geoipdebug_command,

@@ -851,3 +851,28 @@ def test_get_fallback_logger_writes_records_exactly_once() -> None:
     assert handlers_after_first
     assert logger.handlers == handlers_after_first
     assert logger.propagate is False
+
+
+def test_get_logger_or_fallback_returns_the_configured_logger() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    configured = MagicMock()
+    with patch.object(geoip_utils, "get_logger", return_value=configured):
+        assert geoip_utils.get_logger_or_fallback("test_session_key") is configured
+
+
+def test_get_logger_or_fallback_never_raises() -> None:
+    """get_logger reads its log level over REST, so on a node where conf
+    reads fail it raises; every never-fail path (search prepare, settings
+    saves, update runs, diagnostics) leans on this guard instead of
+    re-implementing it."""
+    import geoip_utils  # noqa: PLC0415
+
+    with patch.object(
+        geoip_utils,
+        "get_logger",
+        side_effect=RuntimeError("splunkd unreachable"),
+    ):
+        logger = geoip_utils.get_logger_or_fallback("test_session_key")
+
+    assert logger is geoip_utils.get_fallback_logger()

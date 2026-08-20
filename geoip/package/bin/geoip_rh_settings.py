@@ -33,8 +33,7 @@ from geoip_utils import (
     REPLICATION_ALLOWLIST_STANZA,
     RUN_ON_INDEXERS_FIELD,
     SETTINGS_FIELD_SPECS,
-    get_fallback_logger,
-    get_logger,
+    get_logger_or_fallback,
     is_truthy,
     sync_replication_marker,
 )
@@ -170,17 +169,13 @@ class GeoipSettingsHandler(AdminExternalHandler):
         the post-restart bundle a checksum no search peer has seen (see
         sync_replication_marker).
 
-        The logger is resolved up front, with the fallback, because
-        get_logger reads the log level over REST and can itself raise:
+        The logger is resolved up front, through get_logger_or_fallback
+        (get_logger reads the log level over REST and can itself raise):
         a raise from a later logging call would escape as an opaque 500 -
         after save() has committed, on the disable path - instead of this
         module's RestError with the real failure.
         """
-        try:
-            logger = get_logger(self.getSessionKey())
-        except Exception:
-            logger = get_fallback_logger()
-            logger.exception("Could not build the configured logger")
+        logger = get_logger_or_fallback(self.getSessionKey())
         run_on_indexers = _parse_run_on_indexers(self.callerArgs.data)
         if run_on_indexers:
             _apply_mmdb_replication(self.getSessionKey(), logger, run_on_indexers=True)

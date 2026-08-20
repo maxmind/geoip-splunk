@@ -73,6 +73,7 @@ sys.modules["splunktaucclib.rest_handler.error"] = mock_error
 sys.modules["import_declare_test"] = MagicMock()
 
 import geoip_rh_settings  # noqa: E402  # type: ignore[import-not-found]
+import geoip_utils  # noqa: E402
 from geoip_utils import (  # noqa: E402
     DISTRIBUTION_STANZA,
     MMDB_ALLOW_NOTHING_PATTERN,
@@ -248,21 +249,22 @@ def test_handle_edit_disable_saves_before_writing_distsearch() -> None:
 def test_handle_edit_survives_a_broken_logger() -> None:
     """get_logger reads the log level over REST, so it can raise; that
     must not fail the save, and the fallback logger must reach both
-    _apply_mmdb_replication and the marker sync."""
+    _apply_mmdb_replication and the marker sync. Broken at the
+    geoip_utils level so the real get_logger_or_fallback absorbs the
+    raise."""
     handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["1"]})
-    fallback = MagicMock()
     with (
         patch.object(
-            geoip_rh_settings,
+            geoip_utils,
             "get_logger",
             side_effect=RuntimeError("splunkd unreachable"),
         ),
-        patch.object(geoip_rh_settings, "get_fallback_logger", return_value=fallback),
         patch.object(geoip_rh_settings, "_apply_mmdb_replication") as apply_mock,
         patch.object(geoip_rh_settings, "sync_replication_marker") as marker_mock,
     ):
         handler.handleEdit(MagicMock())
 
+    fallback = geoip_utils.get_fallback_logger()
     apply_mock.assert_called_once_with(
         "test_session_key", fallback, run_on_indexers=True
     )

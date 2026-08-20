@@ -1,7 +1,6 @@
 """MaxMind GeoIP app diagnostics generating command for Splunk."""
 
 import configparser
-import logging
 import os
 import platform
 import socket
@@ -19,8 +18,7 @@ from geoip_utils import (
     fill_missing_event_fields,
     get_configured_database_names,
     get_database_directory,
-    get_fallback_logger,
-    get_logger,
+    get_logger_or_fallback,
     get_run_on_indexers_setting,
     get_setting,
     has_account_credentials,
@@ -126,7 +124,7 @@ def generate(command: Command) -> Iterator[dict[str, Any]]:
         # present=false while the geoip command (which also migrates)
         # works. Never on an indexer: the app runs from the knowledge
         # bundle there and has no legacy directory.
-        migrate_legacy_databases(_get_logger(session_key))
+        migrate_legacy_databases(get_logger_or_fallback(session_key))
         configured = _get_configured_databases(session_key)
 
     events = list(_database_events(configured))
@@ -346,17 +344,4 @@ def _bool_text(*, value: bool) -> str:
 
 def _log_exception(session_key: str, message: str) -> None:
     """Log the current exception without letting logging itself raise."""
-    _get_logger(session_key).exception(message)
-
-
-def _get_logger(session_key: str) -> logging.Logger:
-    """Get the app logger without letting the lookup itself raise.
-
-    get_logger reads its log level from the app's conf over REST, so on
-    a node where conf reads fail (splunkd unreachable, expired session
-    key) it may raise too; fall back to a basic logger.
-    """
-    try:
-        return get_logger(session_key)
-    except Exception:  # noqa: BLE001 - see the docstring
-        return get_fallback_logger()
+    get_logger_or_fallback(session_key).exception(message)
