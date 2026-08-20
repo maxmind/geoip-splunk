@@ -1,6 +1,7 @@
 """MaxMind GeoIP app diagnostics generating command for Splunk."""
 
 import configparser
+import logging
 import os
 import platform
 import socket
@@ -337,14 +338,18 @@ def _bool_text(*, value: bool) -> str:
 
 
 def _log_exception(session_key: str, message: str) -> None:
-    """Log the current exception without letting logging itself raise.
+    """Log the current exception without letting logging itself raise."""
+    _get_logger(session_key).exception(message)
 
-    get_logger reads its log level from the app's conf over REST, so
-    whatever broke the read being logged (splunkd unreachable, expired
-    session key) may make it raise too; fall back to a basic logger.
+
+def _get_logger(session_key: str) -> logging.Logger:
+    """Get the app logger without letting the lookup itself raise.
+
+    get_logger reads its log level from the app's conf over REST, so on
+    a node where conf reads fail (splunkd unreachable, expired session
+    key) it may raise too; fall back to a basic logger.
     """
     try:
-        logger = get_logger(session_key)
+        return get_logger(session_key)
     except Exception:  # noqa: BLE001 - see the docstring
-        logger = get_fallback_logger()
-    logger.exception(message)
+        return get_fallback_logger()
