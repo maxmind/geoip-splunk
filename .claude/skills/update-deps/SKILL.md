@@ -1,11 +1,16 @@
 ---
 name: update-deps
-description: Update all project dependencies (mise tools, uv/pyproject dev dependencies, app runtime requirements) and verify the build. Use when asked to update, bump, or refresh dependencies.
+description:
+  Update all project dependencies (mise tools, uv/pyproject dev dependencies,
+  app runtime requirements) and verify the build. Use when asked to update,
+  bump, or refresh dependencies.
 ---
 
 # Updating Dependencies
 
-Dependencies live in three places (see "Dependencies" in CLAUDE.md): `mise.toml` (dev tools), `pyproject.toml` (build/dev dependencies), and `package/lib/requirements.txt` (app runtime dependencies).
+Dependencies live in three places (see "Dependencies" in CLAUDE.md): `mise.toml`
+(dev tools), `pyproject.toml` (build/dev dependencies), and
+`package/lib/requirements.txt` (app runtime dependencies).
 
 To update all dependencies:
 
@@ -37,4 +42,6 @@ precious tidy -g && precious lint -g && uv run pytest tests && ./build.sh
 precious lint --command appinspect geoip-<version>.tar.gz
 ```
 
-**Important**: Keep Python on 3.13.x as that is the latest major version Splunk supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+**Important**: Keep Python on 3.13.x as that is the latest major version Splunk
+supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml`
+(dev) and `requirements.txt` (runtime), ensure versions stay in sync.
