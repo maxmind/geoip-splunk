@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -322,7 +323,7 @@ def get_database_directory() -> Path:
 
 
 def sync_replication_marker(
-    logger: logging.Logger,
+    logger_factory: Callable[[], logging.Logger],
     *,
     run_on_indexers: bool,
 ) -> None:
@@ -354,6 +355,12 @@ def sync_replication_marker(
     never rebuilds the bundle. Never raises: the marker is a reliability
     aid, and failing to write it must not take down a settings save or an
     update run.
+
+    The logger arrives as a zero-argument callable, invoked only when
+    there is something to log: the steady-state no-op sits on the geoip
+    command's per-search critical path, and building the configured
+    logger costs a REST read. The callable must not raise - pass an
+    already-built logger (lambda: logger) or a guarded lookup.
     """
     content = f"{RUN_ON_INDEXERS_FIELD}\n{1 if run_on_indexers else 0}\n"
     # Resolved outside the try so the failure log below can name the path;
@@ -393,6 +400,7 @@ def sync_replication_marker(
             # only removes it after a failure.
             tmp_path.unlink(missing_ok=True)
     except Exception:  # the marker must never take down the caller
+        logger = logger_factory()
         logger.exception(
             "Failed to write the bundle state marker %s; a changed "
             '"Run on indexers" setting may not reach the search peers '
@@ -400,7 +408,7 @@ def sync_replication_marker(
             marker_path,
         )
     else:
-        logger.info(
+        logger_factory().info(
             "Recorded run_on_indexers=%s in %s",
             run_on_indexers,
             marker_path,

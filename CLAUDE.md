@@ -497,11 +497,13 @@ What reaches the indexers is controlled by `default/distsearch.conf`:
   journaled, so each member maintains its own copy. Written by the settings
   handler on save (a pre-restart write suffices - the fresh mtime rides into the
   post-restart bundle) and synced by the updater input each run, which covers
-  members that did not serve the save; residual gap: on Splunk Cloud Victoria
+  members that did not serve the save. Residual gap: on Splunk Cloud Victoria
   only one SHC member runs the input (GitHub #76), so a captain that neither
-  runs the input nor serves the save keeps a stale marker. For testing, the
-  `GEOIP_LOOKUPS_DIR` environment variable overrides the marker's directory,
-  like `MAXMIND_DB_DIR` for the databases. Diagnostics:
+  runs the input nor serves the save keeps a stale marker - narrowed by a third
+  writer: the geoip command's `prepare()` also syncs the marker on a successful
+  settings read, so such a captain unsticks when it next dispatches a geoip
+  search. For testing, the `GEOIP_LOOKUPS_DIR` environment variable overrides
+  the marker's directory, like `MAXMIND_DB_DIR` for the databases. Diagnostics:
   `index=_internal group=bundles_uploads name=peer_dispatch`
   (`status=already_present` is the stuck signature) and
   `group=bundle_replication name=common_bundle_status`

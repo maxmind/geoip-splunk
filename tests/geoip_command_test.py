@@ -636,6 +636,69 @@ def test_prepare_settings_read_failure_survives_a_broken_logger() -> None:
     assert command.configuration.distributed is False
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_prepare_syncs_the_bundle_marker_on_a_successful_read(
+    enabled: bool,  # noqa: FBT001
+) -> None:
+    """A successful read syncs the bundle state marker: on Splunk Cloud
+    Victoria only one cluster member runs the updater input, so a captain
+    that also did not serve the settings save has no other writer - and
+    the knowledge bundle follows the captain's files."""
+    command = MockPreparableCommand(sid="1234.56789")
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            return_value="1" if enabled else "0",
+        ),
+        patch.object(geoip_command, "sync_replication_marker") as sync_mock,
+    ):
+        geoip_command.prepare(command)
+
+    sync_mock.assert_called_once()
+    assert sync_mock.call_args.kwargs == {"run_on_indexers": enabled}
+
+
+def test_prepare_settings_read_failure_does_not_sync_the_marker() -> None:
+    """On a failed read the state is unknown; writing a guess into the
+    marker could rebuild every peer's bundle for nothing."""
+    command = MockPreparableCommand(sid="1234.56789")
+
+    with (
+        patch.object(
+            geoip_command,
+            "get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "get_logger"),
+        patch.object(geoip_command, "sync_replication_marker") as sync_mock,
+    ):
+        geoip_command.prepare(command)
+
+    sync_mock.assert_not_called()
+
+
+def test_prepare_marker_sync_survives_a_broken_logger() -> None:
+    """get_logger can raise on the success path too (it reads the log
+    level over REST); the sync falls back rather than failing the search."""
+    command = MockPreparableCommand(sid="1234.56789")
+
+    with (
+        patch.object(geoip_command, "get_run_on_indexers_setting", return_value="1"),
+        patch.object(
+            geoip_command,
+            "get_logger",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_command, "sync_replication_marker") as sync_mock,
+    ):
+        geoip_command.prepare(command)
+
+    sync_mock.assert_called_once()
+    assert command.configuration.distributed is True
+
+
 def test_prepare_on_indexer_reports_distributed_and_never_touches_rest() -> None:
     command = MockPreparableCommand(sid="remote_sh1_1234.56789")
     command.configuration.distributed = False

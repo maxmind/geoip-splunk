@@ -1,6 +1,7 @@
 """MaxMind database lookup streaming command for Splunk."""
 
 import contextlib
+import logging
 import os
 import sys
 from collections.abc import Iterator
@@ -19,6 +20,7 @@ from geoip_utils import (
     is_truthy,
     is_valid_database_name,
     migrate_legacy_databases,
+    sync_replication_marker,
 )
 
 
@@ -110,16 +112,26 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
     results from the wrong topology here, so the reverted setting is also
     reported to the search, where it shows up in Splunk Web and the job
     inspector.
+
+    A successful read also syncs the knowledge bundle state marker (see
+    sync_replication_marker): the settings handler and the updater input
+    cover most members, but on Splunk Cloud Victoria only one search head
+    cluster member runs the input (GitHub #76), so a captain that neither
+    runs it nor served the settings save would keep a stale marker - and
+    the knowledge bundle follows the captain's files. Syncing here turns
+    that from stuck-indefinitely into unstuck when the captain next
+    dispatches a geoip search. A read of one small file when the marker
+    already matches - not even a logger gets built then - and it never
+    raises. Never synced on a failed read:
+    the state is unknown, and a wrong write could rebuild every peer's
+    bundle for nothing.
     """
     session_key = ""
     try:
         session_key = command.metadata.searchinfo.session_key
         value = get_run_on_indexers_setting(session_key)
     except Exception:  # any failure means don't distribute
-        try:
-            logger = get_logger(session_key)
-        except Exception:  # noqa: BLE001 - see the docstring
-            logger = get_fallback_logger()
+        logger = _get_logger(session_key)
         logger.exception(
             "Failed to read the run_on_indexers setting; "
             "running on the search head only"
@@ -130,7 +142,27 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
                 "the geoip command ran on the search head only."
             )
         return False
-    return is_truthy(value)
+    enabled = is_truthy(value)
+    sync_replication_marker(
+        lambda: _get_logger(session_key),
+        run_on_indexers=enabled,
+    )
+    return enabled
+
+
+def _get_logger(session_key: str) -> logging.Logger:
+    """Get the app logger without letting the lookup itself raise.
+
+    get_logger reads its log level from the app's conf over REST, so on
+    a node where conf reads fail (splunkd unreachable, expired session
+    key) it may raise too; fall back to a basic logger. Same helper as
+    geoipdebug_command's - kept module-local so tests can patch each
+    module's get_logger independently.
+    """
+    try:
+        return get_logger(session_key)
+    except Exception:  # noqa: BLE001 - see the docstring
+        return get_fallback_logger()
 
 
 def stream(

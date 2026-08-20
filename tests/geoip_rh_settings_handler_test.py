@@ -266,7 +266,9 @@ def test_handle_edit_survives_a_broken_logger() -> None:
     apply_mock.assert_called_once_with(
         "test_session_key", fallback, run_on_indexers=True
     )
-    marker_mock.assert_called_once_with(fallback, run_on_indexers=True)
+    marker_mock.assert_called_once()
+    assert marker_mock.call_args.args[0]() is fallback
+    assert marker_mock.call_args.kwargs == {"run_on_indexers": True}
 
 
 def test_handle_edit_account_does_not_touch_distsearch() -> None:

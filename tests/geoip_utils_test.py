@@ -699,7 +699,7 @@ def test_sync_replication_marker_writes_the_state(
     content is a valid one-column CSV, since the file lives in lookups/."""
     import geoip_utils  # noqa: PLC0415
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=run_on_indexers)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=run_on_indexers)
 
     assert _marker_path().read_text(encoding="ascii") == expected
 
@@ -710,20 +710,34 @@ def test_sync_replication_marker_is_a_noop_when_the_state_matches() -> None:
     rewrite here would rebuild the bundle on every peer every hour."""
     import geoip_utils  # noqa: PLC0415
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=True)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
     before = _marker_path().stat()
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=True)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
 
     after = _marker_path().stat()
     assert (after.st_mtime_ns, after.st_ino) == (before.st_mtime_ns, before.st_ino)
 
 
+def test_sync_replication_marker_steady_state_builds_no_logger() -> None:
+    """The geoip command syncs on every search head search, and its
+    logger lookup costs a REST read, so the matching-marker no-op must
+    not invoke the logger factory at all."""
+    import geoip_utils  # noqa: PLC0415
+
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
+    factory = MagicMock()
+
+    geoip_utils.sync_replication_marker(factory, run_on_indexers=True)
+
+    factory.assert_not_called()
+
+
 def test_sync_replication_marker_rewrites_on_a_state_change() -> None:
     import geoip_utils  # noqa: PLC0415
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=True)
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=False)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=False)
 
     assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n0\n"
 
@@ -736,7 +750,7 @@ def test_sync_replication_marker_rewrites_a_corrupt_marker() -> None:
     _marker_path().parent.mkdir(parents=True, exist_ok=True)
     _marker_path().write_bytes(b"\xff\xfe garbage")
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=True)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
 
     assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n1\n"
 
@@ -747,7 +761,7 @@ def test_sync_replication_marker_leaves_no_temporary_file() -> None:
     would sit in lookups/ forever."""
     import geoip_utils  # noqa: PLC0415
 
-    geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=True)
+    geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=True)
 
     assert [p.name for p in _marker_path().parent.iterdir()] == [
         "geoip_replication_state.csv"
@@ -762,7 +776,7 @@ def test_sync_replication_marker_cleans_up_the_scratch_file_on_failure() -> None
 
     logger = MagicMock()
     with patch.object(Path, "replace", side_effect=OSError("read-only filesystem")):
-        geoip_utils.sync_replication_marker(logger, run_on_indexers=True)
+        geoip_utils.sync_replication_marker(lambda: logger, run_on_indexers=True)
 
     logger.exception.assert_called_once()
     assert not list(_marker_path().parent.iterdir())
@@ -784,12 +798,12 @@ def test_sync_replication_marker_concurrent_calls_keep_their_own_scratch_file() 
         nonlocal inner_ran
         if not inner_ran:
             inner_ran = True
-            geoip_utils.sync_replication_marker(MagicMock(), run_on_indexers=False)
+            geoip_utils.sync_replication_marker(MagicMock, run_on_indexers=False)
         return real_replace(self, target)
 
     logger = MagicMock()
     with patch.object(Path, "replace", replace_with_interleaved_call):
-        geoip_utils.sync_replication_marker(logger, run_on_indexers=True)
+        geoip_utils.sync_replication_marker(lambda: logger, run_on_indexers=True)
 
     logger.exception.assert_not_called()
     assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n1\n"
@@ -812,7 +826,7 @@ def test_sync_replication_marker_never_raises(
 
     import geoip_utils  # noqa: PLC0415
 
-    geoip_utils.sync_replication_marker(logger, run_on_indexers=True)
+    geoip_utils.sync_replication_marker(lambda: logger, run_on_indexers=True)
 
     logger.exception.assert_called_once()
 

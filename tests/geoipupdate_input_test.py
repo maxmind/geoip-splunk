@@ -197,7 +197,9 @@ def test_stream_events_syncs_the_marker_even_when_unconfigured(
         input_obj.stream_events(inputs, None)
 
     setting_mock.assert_called_once_with("test_session_key")
-    sync_mock.assert_called_once_with(mock_logger, run_on_indexers=True)
+    sync_mock.assert_called_once()
+    assert sync_mock.call_args.args[0]() is mock_logger
+    assert sync_mock.call_args.kwargs == {"run_on_indexers": True}
 
 
 def test_sync_replication_marker_skips_when_the_setting_read_fails() -> None:
