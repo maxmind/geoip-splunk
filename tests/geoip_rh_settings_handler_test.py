@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -124,7 +124,7 @@ def test_apply_mmdb_replication_enabled_writes_allow_pattern() -> None:
         conf = manager.return_value.get_conf.return_value
 
         geoip_rh_settings._apply_mmdb_replication(
-            "test_session_key", run_on_indexers=True
+            "test_session_key", MagicMock(), run_on_indexers=True
         )
 
         manager.assert_called_once_with("test_session_key", "geoip")
@@ -140,7 +140,7 @@ def test_apply_mmdb_replication_disabled_restores_allow_nothing_pattern() -> Non
         conf = manager.return_value.get_conf.return_value
 
         geoip_rh_settings._apply_mmdb_replication(
-            "test_session_key", run_on_indexers=False
+            "test_session_key", MagicMock(), run_on_indexers=False
         )
 
         conf.update.assert_called_once_with(
@@ -168,7 +168,7 @@ def test_apply_mmdb_replication_write_failure_raises_rest_error(
 
         with pytest.raises(FakeRestError) as exc_info:
             geoip_rh_settings._apply_mmdb_replication(
-                "test_session_key", run_on_indexers=run_on_indexers
+                "test_session_key", MagicMock(), run_on_indexers=run_on_indexers
             )
 
         internal_server_error = 500
@@ -190,20 +190,24 @@ def _make_handler(
 def test_handle_edit_enable_writes_distsearch_before_saving() -> None:
     """A failed distsearch write on enable must leave the setting off:
     committed setting + placeholder allowlist breaks every geoip search
-    in a way a restart does not fix."""
+    in a way a restart does not fix. The bundle state marker comes last,
+    once both writes committed the new state."""
     handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["1"]})
     order = MagicMock()
     with (
         patch.object(geoip_rh_settings, "_apply_mmdb_replication", order.apply),
         patch.object(FakeAdminExternalHandler, "handleEdit", order.save),
+        patch.object(geoip_rh_settings, "sync_replication_marker", order.marker),
     ):
         handler.handleEdit(MagicMock())
 
-    assert [name for name, _, _ in order.mock_calls] == ["apply", "save"]
-    order.apply.assert_called_once_with("test_session_key", run_on_indexers=True)
+    assert [name for name, _, _ in order.mock_calls] == ["apply", "save", "marker"]
+    order.apply.assert_called_once_with("test_session_key", ANY, run_on_indexers=True)
+    assert order.marker.call_args.kwargs == {"run_on_indexers": True}
 
 
 def test_handle_edit_enable_does_not_save_when_distsearch_write_fails() -> None:
+    """The marker must not record a state the failed save rolled back."""
     handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["1"]})
     with (
         patch.object(
@@ -212,11 +216,13 @@ def test_handle_edit_enable_does_not_save_when_distsearch_write_fails() -> None:
             side_effect=FakeRestError(500, "splunkd unreachable"),
         ),
         patch.object(FakeAdminExternalHandler, "handleEdit") as save_mock,
+        patch.object(geoip_rh_settings, "sync_replication_marker") as marker_mock,
         pytest.raises(FakeRestError),
     ):
         handler.handleEdit(MagicMock())
 
     save_mock.assert_not_called()
+    marker_mock.assert_not_called()
 
 
 def test_handle_edit_disable_saves_before_writing_distsearch() -> None:
@@ -230,11 +236,37 @@ def test_handle_edit_disable_saves_before_writing_distsearch() -> None:
     with (
         patch.object(geoip_rh_settings, "_apply_mmdb_replication", order.apply),
         patch.object(FakeAdminExternalHandler, "handleEdit", order.save),
+        patch.object(geoip_rh_settings, "sync_replication_marker", order.marker),
     ):
         handler.handleEdit(MagicMock())
 
-    assert [name for name, _, _ in order.mock_calls] == ["save", "apply"]
-    order.apply.assert_called_once_with("test_session_key", run_on_indexers=False)
+    assert [name for name, _, _ in order.mock_calls] == ["save", "apply", "marker"]
+    order.apply.assert_called_once_with("test_session_key", ANY, run_on_indexers=False)
+    assert order.marker.call_args.kwargs == {"run_on_indexers": False}
+
+
+def test_handle_edit_survives_a_broken_logger() -> None:
+    """get_logger reads the log level over REST, so it can raise; that
+    must not fail the save, and the fallback logger must reach both
+    _apply_mmdb_replication and the marker sync."""
+    handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["1"]})
+    fallback = MagicMock()
+    with (
+        patch.object(
+            geoip_rh_settings,
+            "get_logger",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch.object(geoip_rh_settings, "get_fallback_logger", return_value=fallback),
+        patch.object(geoip_rh_settings, "_apply_mmdb_replication") as apply_mock,
+        patch.object(geoip_rh_settings, "sync_replication_marker") as marker_mock,
+    ):
+        handler.handleEdit(MagicMock())
+
+    apply_mock.assert_called_once_with(
+        "test_session_key", fallback, run_on_indexers=True
+    )
+    marker_mock.assert_called_once_with(fallback, run_on_indexers=True)
 
 
 def test_handle_edit_account_does_not_touch_distsearch() -> None:

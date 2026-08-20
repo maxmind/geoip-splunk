@@ -22,7 +22,10 @@ from geoip_utils import (
     get_database_directory,
     get_fallback_logger,
     get_logger,
+    get_run_on_indexers_setting,
+    is_truthy,
     migrate_legacy_databases,
+    sync_replication_marker,
     validate_account_credentials,
 )
 from pygeoipupdate import Config, Updater
@@ -93,6 +96,12 @@ def run_database_update(session_key: str) -> None:
     # location should move even while the input is unconfigured.
     migrate_legacy_databases(logger)
 
+    # Also before the configuration checks: the bundle state marker must
+    # track the "Run on indexers" setting even while the updater is
+    # unconfigured, and this run may be the first one after the restart
+    # that loaded the setting's replication rules.
+    _sync_replication_marker(session_key, logger)
+
     try:
         account_id, license_key = _get_account_credentials(session_key)
         edition_ids = _get_database_names(session_key)
@@ -116,6 +125,26 @@ def run_database_update(session_key: str) -> None:
         logger.exception("Database update failed")
     except Exception:
         logger.exception("Unexpected error during database update")
+
+
+def _sync_replication_marker(session_key: str, logger: logging.Logger) -> None:
+    """Sync the bundle state marker to the "Run on indexers" setting.
+
+    The settings handler writes the marker on save, but only on the search
+    head cluster member that served the save; this covers the others - in
+    particular a captain that did not serve it, whose files the knowledge
+    bundle follows. Never raises: like the migration, a failure here must
+    not take down the update run.
+    """
+    try:
+        run_on_indexers = is_truthy(get_run_on_indexers_setting(session_key))
+    except Exception:
+        logger.exception(
+            "Could not read the run_on_indexers setting; "
+            "leaving the bundle state marker alone"
+        )
+        return
+    sync_replication_marker(logger, run_on_indexers=run_on_indexers)
 
 
 def _get_account_credentials(session_key: str) -> tuple[int, str]:

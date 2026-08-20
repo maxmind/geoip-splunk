@@ -48,6 +48,19 @@ def _isolate_splunk_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
 
 
 @pytest.fixture(autouse=True)
+def _isolate_lookups_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Point the bundle state marker at a per-test tmp_path.
+
+    get_replication_marker_path resolves the marker path relative to
+    geoip_utils.py, which in the suite is the repo's package tree; without
+    isolation, tests reaching the marker sync (through the settings
+    handler or run_database_update) would create
+    geoip/package/lookups/geoip_replication_state.csv in the repo.
+    """
+    monkeypatch.setenv("GEOIP_LOOKUPS_DIR", str(tmp_path / "lookups"))
+
+
+@pytest.fixture(autouse=True)
 def _clear_reader_cache() -> None:
     """Empty geoip_command's module-level reader cache.
 

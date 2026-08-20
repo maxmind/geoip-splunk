@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,19 @@ MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
 # Allow-nothing pattern: matches no real file, so the databases stay out of
 # the bundle (indexer execution off).
 MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
+
+# The knowledge bundle state marker (see sync_replication_marker). Lives in
+# the app's lookups/ directory because that is in Splunk's default bundle
+# replication allowlist, so the marker is in the bundle under both toggle
+# states - which is what lets a marker change alter the bundle checksum.
+# lookups/ is also swept into search head cluster replication summaries -
+# the reason the databases live in databases/ instead (see
+# get_database_directory) - but that is harmless for a few-byte marker:
+# direct disk writes are not journaled, so each member maintains its own
+# copy in steady state, and a destructive resync rewriting it from the
+# captain's baseline converges to the same state, since every member
+# derives the content from the same replicated setting.
+REPLICATION_MARKER_FILENAME = "geoip_replication_state.csv"
 
 # Conf coordinates of the "Run on indexers" toggle in geoip_settings.conf:
 # the stanza (also the settings tab's REST id) and the field within it.
@@ -305,6 +319,106 @@ def get_database_directory() -> Path:
         return Path(env_dir)
 
     return Path(__file__).resolve().parent.parent / "databases"
+
+
+def sync_replication_marker(
+    logger: logging.Logger,
+    *,
+    run_on_indexers: bool,
+) -> None:
+    """Record the "Run on indexers" state in the bundle state marker.
+
+    Splunk identifies a knowledge bundle by a checksum over the bundle's
+    file metadata, and when a freshly built bundle's checksum matches a
+    bundle a search peer already holds, it skips the upload without
+    switching the peer to it (verified on a live cluster).
+    Toggling "Run on indexers" flips the bundle between two recurring
+    states, so on an otherwise quiet cluster the rebuilt bundle after a
+    toggle-plus-restart matches a stale bundle in the peer's inventory
+    and the toggle silently never takes effect on the peers - enabled but
+    absent databases fail every distributed geoip search, indefinitely.
+
+    Rewriting an always-replicated file on every state change breaks the
+    recurrence: the rewrite's fresh mtime gives the next bundle a checksum
+    no peer has seen. The mtime is the entire mechanism - the checksum
+    covers file metadata, and both states of this file are the same size -
+    so a rewrite that preserved the mtime would silently reinstate the
+    bug; the recorded value exists to make the sync idempotent and the
+    state inspectable. The settings handler writes the marker on save (a
+    pre-restart write is enough - its fresh mtime rides into the
+    post-restart bundle) and the updater input syncs it each run,
+    covering members that did not serve the save; the bundle follows the
+    captain's files, and any member can be captain.
+
+    No-op when the marker already records the state, so steady state
+    never rebuilds the bundle. Never raises: the marker is a reliability
+    aid, and failing to write it must not take down a settings save or an
+    update run.
+    """
+    content = f"{RUN_ON_INDEXERS_FIELD}\n{1 if run_on_indexers else 0}\n"
+    # Resolved outside the try so the failure log below can name the path;
+    # pure computation (an environment read and string joins), so it does
+    # not endanger the never-raises promise.
+    marker_path = get_replication_marker_path()
+    try:
+        try:
+            if marker_path.read_text(encoding="ascii") == content:
+                return
+        except (OSError, UnicodeDecodeError):
+            pass  # missing or unreadable: (re)write it
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+        # Write-and-rename so a bundle build cannot pick up a torn write.
+        # mkstemp gives each concurrent writer (a settings save in one
+        # process overlapping an updater run in another, say) its own
+        # exclusively created scratch file, the same way pygeoipupdate
+        # writes the databases, and Splunk's default replication denylist
+        # excludes lookups/*.tmp, so the scratch file never rides the
+        # bundle itself.
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f"{marker_path.name}.",
+            suffix=".tmp",
+            dir=marker_path.parent,
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="ascii") as tmp_file:
+                if hasattr(os, "fchmod"):
+                    # mkstemp creates the file 0600; give the marker the
+                    # mode a plain create would have.
+                    os.fchmod(tmp_file.fileno(), 0o644)
+                tmp_file.write(content)
+            tmp_path.replace(marker_path)
+        finally:
+            # replace() consumed the scratch file on success, so this
+            # only removes it after a failure.
+            tmp_path.unlink(missing_ok=True)
+    except Exception:  # the marker must never take down the caller
+        logger.exception(
+            "Failed to write the bundle state marker %s; a changed "
+            '"Run on indexers" setting may not reach the search peers '
+            "until some other replicated app file changes",
+            marker_path,
+        )
+    else:
+        logger.info(
+            "Recorded run_on_indexers=%s in %s",
+            run_on_indexers,
+            marker_path,
+        )
+
+
+def get_replication_marker_path() -> Path:
+    """Get the path of the knowledge bundle state marker.
+
+    Resolved relative to this file like get_database_directory; the
+    GEOIP_LOOKUPS_DIR environment variable overrides the directory for
+    tests.
+    """
+    if env_dir := os.environ.get("GEOIP_LOOKUPS_DIR"):
+        return Path(env_dir) / REPLICATION_MARKER_FILENAME
+    return (
+        Path(__file__).resolve().parent.parent / "lookups" / REPLICATION_MARKER_FILENAME
+    )
 
 
 def get_run_on_indexers_setting(session_key: str) -> object | None:

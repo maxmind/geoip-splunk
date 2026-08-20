@@ -56,6 +56,7 @@ from geoipupdate_input import (  # noqa: E402  # type: ignore[import-not-found]
     _get_account_credentials,
     _get_database_names,
     _run_update,
+    _sync_replication_marker,
 )
 from pygeoipupdate import Config as PyGeoIPUpdateConfig  # noqa: E402
 from pygeoipupdate.errors import (  # noqa: E402  # type: ignore[import-not-found]
@@ -165,6 +166,59 @@ def test_stream_events_migrates_even_when_unconfigured(
     migrate_mock.assert_called_once_with(mock_logger)
 
 
+def test_stream_events_syncs_the_marker_even_when_unconfigured(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """The bundle state marker must track the "Run on indexers" setting
+    even before credentials are configured: the run right after a restart
+    may be what makes the toggle's bundle change reach the indexers."""
+    monkeypatch.setenv("MAXMIND_DB_DIR", str(tmp_path))
+
+    input_obj = GeoIPUpdateInput()
+
+    inputs = MagicMock()
+    inputs.metadata = {"session_key": "test_session_key"}
+
+    mock_logger = MagicMock(spec=logging.Logger)
+
+    with (
+        patch("geoipupdate_input.get_logger", return_value=mock_logger),
+        patch(
+            "geoipupdate_input.get_run_on_indexers_setting",
+            return_value="1",
+        ) as setting_mock,
+        patch("geoipupdate_input.sync_replication_marker") as sync_mock,
+        patch(
+            "geoipupdate_input._get_account_credentials",
+            side_effect=ValueError("Credentials not configured"),
+        ),
+    ):
+        input_obj.stream_events(inputs, None)
+
+    setting_mock.assert_called_once_with("test_session_key")
+    sync_mock.assert_called_once_with(mock_logger, run_on_indexers=True)
+
+
+def test_sync_replication_marker_skips_when_the_setting_read_fails() -> None:
+    """A failed settings read must not rewrite the marker (the current
+    state is unknown, and a wrong write could rebuild the bundle) and
+    must not take down the update run."""
+    mock_logger = MagicMock(spec=logging.Logger)
+
+    with (
+        patch(
+            "geoipupdate_input.get_run_on_indexers_setting",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch("geoipupdate_input.sync_replication_marker") as sync_mock,
+    ):
+        _sync_replication_marker("test_session_key", mock_logger)
+
+    sync_mock.assert_not_called()
+    mock_logger.exception.assert_called_once()
+
+
 def test_stream_events_handles_missing_databases(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -224,6 +278,9 @@ def test_stream_events_handles_geoipupdate_error(
             "geoipupdate_input._run_update",
             side_effect=GeoIPUpdateError("Download failed"),
         ),
+        # Patched so its settings read (which fails without solnlib) does
+        # not add a logger.exception call of its own.
+        patch("geoipupdate_input._sync_replication_marker"),
     ):
         input_obj.stream_events(inputs, None)
 
@@ -258,6 +315,9 @@ def test_stream_events_handles_unexpected_error(
             "geoipupdate_input._run_update",
             side_effect=RuntimeError("Something unexpected"),
         ),
+        # Patched so its settings read (which fails without solnlib) does
+        # not add a logger.exception call of its own.
+        patch("geoipupdate_input._sync_replication_marker"),
     ):
         input_obj.stream_events(inputs, None)
 

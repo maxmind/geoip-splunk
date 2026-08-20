@@ -92,7 +92,7 @@
                             "type": "checkbox",
                             "label": "Run on indexers",
                             "field": "run_on_indexers",
-                            "help": "Run the geoip command on the indexers and replicate the MaxMind databases to them in the knowledge bundle. Off by default: large databases increase the knowledge bundle size, and replication can exceed bundle size limits. Restart the search head (every member, in a search head cluster) after changing this setting - the change to database replication only takes effect at startup, and in a distributed deployment, geoip searches will fail with a database-not-found error after enabling until the restart completes.",
+                            "help": "Run the geoip command on the indexers and replicate the MaxMind databases to them in the knowledge bundle. Off by default: large databases increase the knowledge bundle size, and replication can exceed bundle size limits. Restart the search head (every member, in a search head cluster) after changing this setting - the change to database replication only takes effect at startup. After the restart, the databases reach the indexers with the next knowledge bundle push, typically within a couple of minutes; in a distributed deployment, geoip searches fail with a database-not-found error after enabling until that push completes.",
                             "defaultValue": 0
                         }
                     ]

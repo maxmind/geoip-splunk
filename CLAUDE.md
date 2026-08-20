@@ -191,6 +191,11 @@ automatically:
 The input gracefully handles incomplete configuration - it logs a warning and
 skips the update until both credentials and databases are configured.
 
+Before the configuration checks, every run also migrates legacy databases and
+syncs the knowledge bundle state marker (`_sync_replication_marker`, see
+"Command distribution" below) - both must happen even while the updater is
+unconfigured.
+
 #### Modular Input Registration
 
 Splunk discovers modular input types by reading `README/inputs.conf.spec`. Two
@@ -248,6 +253,11 @@ submodule at `tests/data/`.
 The `MAXMIND_DB_DIR` environment variable overrides the database directory,
 allowing tests to use test databases from the MaxMind-DB submodule instead of
 production databases.
+
+The `GEOIP_LOOKUPS_DIR` environment variable similarly overrides the lookups
+directory holding the knowledge bundle state marker; an autouse conftest fixture
+points it at a per-test tmp_path so tests never write into the repo's package
+tree.
 
 Test IPs from GeoIP2-Country-Test.mmdb:
 
@@ -461,11 +471,41 @@ What reaches the indexers is controlled by `default/distsearch.conf`:
   bundle content only after the search head restarts. The command's
   `distributed` flag, read per search in `prepare()`, switches immediately - so
   in a distributed deployment, geoip searches fail with the missing-database
-  error between enabling and restarting (disabling is safe immediately). On a
-  single instance with no search peers, distributing changes nothing and nothing
-  fails. New or updated database files under unchanged rules enter the bundle
-  automatically within a bundle cycle or two - no restart. The help text,
-  README, and the missing-database error all reflect this.
+  error between enabling and the first bundle push after the restart (disabling
+  is safe immediately). On a single instance with no search peers, distributing
+  changes nothing and nothing fails. New or updated database files under
+  unchanged rules enter the bundle automatically within a bundle cycle or two -
+  no restart. The help text, README, and the missing-database error all reflect
+  this.
+- A restart is necessary but NOT sufficient (verified on a live cluster,
+  2026-08-20): Splunk identifies a bundle by a checksum over its file metadata,
+  and when the rebuilt bundle's checksum matches a bundle a peer already holds
+  in its inventory (`services/admin/bundles`), the push is skipped as
+  `already_present` and the peer's latest common bundle never advances - the
+  toggle then silently never takes effect on the peers, in either direction,
+  until an unrelated allowlisted file changes. Toggling flips the bundle between
+  two recurring states, so on a quiet cluster the second and later toggles in
+  each direction hit this. The fix is the bundle state marker
+  `lookups/geoip_replication_state.csv` (`sync_replication_marker` in
+  `geoip_utils.py`): it records the toggle state in an always-replicated file
+  (lookups/ is in Splunk's default bundle allowlist), so every state change
+  rewrites the file and the fresh mtime gives the next bundle a checksum no peer
+  has seen - the checksum covers file metadata, so the mtime is the whole
+  mechanism. lookups/ is also in SHC replication summaries (the reason the
+  databases avoid it), which is harmless for a few-byte file whose content every
+  member derives from the same replicated setting - direct disk writes are not
+  journaled, so each member maintains its own copy. Written by the settings
+  handler on save (a pre-restart write suffices - the fresh mtime rides into the
+  post-restart bundle) and synced by the updater input each run, which covers
+  members that did not serve the save; residual gap: on Splunk Cloud Victoria
+  only one SHC member runs the input (GitHub #76), so a captain that neither
+  runs the input nor serves the save keeps a stale marker. For testing, the
+  `GEOIP_LOOKUPS_DIR` environment variable overrides the marker's directory,
+  like `MAXMIND_DB_DIR` for the databases. Diagnostics:
+  `index=_internal group=bundles_uploads name=peer_dispatch`
+  (`status=already_present` is the stuck signature) and
+  `group=bundle_replication name=common_bundle_status`
+  (`latest_common_bundle_checksum` advances only on a real upload).
 
 Bundle pushes are triggered by searches dispatched to the indexers, and the
 triggering search still runs against the previous bundle - hence the tailored
@@ -629,11 +669,11 @@ yours; it can't merge them.
 
 **Files involved:**
 
-| File                    | Purpose                                                                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `geoip_handler.py`      | Shared module with `GeoipDatabasesHandler` class and background update functions                                                                                  |
-| `geoip_rh_settings.py`  | Complete custom handler for account/distribution/logging settings (field definitions duplicated); also writes the distsearch.conf override for the indexer toggle |
-| `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler`                                                                                                        |
+| File                    | Purpose                                                                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `geoip_handler.py`      | Shared module with `GeoipDatabasesHandler` class and background update functions                                                                                                              |
+| `geoip_rh_settings.py`  | Complete custom handler for account/distribution/logging settings (field definitions duplicated); also writes the distsearch.conf override and the bundle state marker for the indexer toggle |
+| `geoip_rh_databases.py` | UCC-generated wrapper that imports `GeoipDatabasesHandler`                                                                                                                                    |
 
 **Handler class pattern:**
 

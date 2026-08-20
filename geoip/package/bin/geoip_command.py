@@ -292,11 +292,12 @@ def _get_reader(
                     f"Database not found on this indexer: {name}.mmdb. "
                     "Check the database name (case-sensitive) against the "
                     "GeoIP app configuration page. If it is correct, the "
-                    "database is missing from the knowledge bundle: retry "
-                    "shortly if it was added recently, restart the search "
-                    'head if "Run on indexers" was enabled since its last '
-                    "restart, and otherwise see the app README for bundle "
-                    "size limits and troubleshooting."
+                    "database is missing from the knowledge bundle: restart "
+                    'the search head if "Run on indexers" was enabled since '
+                    "its last restart, allow a couple of minutes after a "
+                    "restart or a new download for a search to push the "
+                    "updated bundle, and see the app README for "
+                    "bundle size limits and troubleshooting."
                 )
             else:
                 msg = (
