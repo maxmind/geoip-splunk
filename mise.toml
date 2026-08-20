@@ -11,8 +11,8 @@ disable_backends = [
 ]
 
 [tools]
-"aqua:astral-sh/uv" = "0.9.28"
-"github:houseabsolute/precious" = "0.10.2"
+"aqua:astral-sh/uv" = "0.12.5"
+"github:houseabsolute/precious" = "0.11.0"
 # node is only here to provide prettier, which tidies and lints markdown.
 node = "26.7.0"
 "npm:prettier" = "3.9.6"
