@@ -528,7 +528,10 @@ There are three places where dependencies are managed:
 ### Updating Dependencies
 
 To update all dependencies, use the `update-deps` skill
-(`.claude/skills/update-deps/SKILL.md`).
+(`.claude/skills/update-deps/SKILL.md`). Dependabot already covers
+`pyproject.toml`/`uv.lock` (the `uv` ecosystem) and
+`package/lib/requirements.txt` (the `pip` ecosystem); nothing covers
+`mise.toml`, so the mise tools are the part to bump by hand.
 
 **Important**: Keep Python on 3.13.x as that is the latest major version Splunk
 supports. When updating `maxminddb`, `pygeoipupdate`, or `solnlib` in both
