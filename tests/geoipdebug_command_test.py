@@ -404,6 +404,35 @@ def test_settings_event_loglevel_unknown_when_the_key_is_missing() -> None:
     assert event["loglevel"] == "unknown"
 
 
+def test_generate_migrates_legacy_databases_on_the_search_head() -> None:
+    """After an upgrade the databases may still be in the pre-1.2.0
+    location; without the migration the command would report every
+    database as present=false while the geoip command (which also
+    migrates) works."""
+    command = MockCommand()
+
+    with (
+        patch.object(
+            geoipdebug_command, "get_configured_database_names", return_value=[]
+        ),
+        patch.object(geoipdebug_command, "migrate_legacy_databases") as migrate_mock,
+    ):
+        list(geoipdebug_command.generate(command))
+
+    migrate_mock.assert_called_once()
+
+
+def test_generate_on_an_indexer_does_not_migrate() -> None:
+    """On an indexer the app runs from the knowledge bundle and has no
+    legacy directory; the command must not try to migrate there."""
+    command = MockCommand(sid="remote_sh1_1234.56789")
+
+    with patch.object(geoipdebug_command, "migrate_legacy_databases") as migrate_mock:
+        list(geoipdebug_command.generate(command))
+
+    migrate_mock.assert_not_called()
+
+
 def test_generate_reports_no_databases_when_none_are_configured(
     tmp_path: Path,
     monkeypatch: "MonkeyPatch",

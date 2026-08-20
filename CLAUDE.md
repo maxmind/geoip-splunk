@@ -65,7 +65,9 @@ baseline:
 - `component=database`: one event per configured database (from
   `geoip_databases.conf` via `get_configured_database_names`) with
   `present`, `build_time` (mmdb metadata `build_epoch`), `database_type`,
-  and file path/size/mtime. On an indexer - or if the conf read fails -
+  and file path/size/mtime. A search-head run first migrates legacy
+  databases (like the geoip command on a miss), so an upgrade does not
+  show them as absent. On an indexer - or if the conf read fails -
   it lists the `*.mmdb` files in the database directory instead, which on
   an indexer is what the knowledge bundle carries. `database_source`
   (`configured`/`directory`) says which of the two produced the event,
@@ -144,9 +146,11 @@ For testing, set the `MAXMIND_DB_DIR` environment variable to override the datab
 
 `migrate_legacy_databases` (geoip_utils.py) moves anything left in the old
 location (`local/data/`, resolved via `$SPLUNK_HOME`) into `databases/`. It
-runs at the start of every updater run (even unconfigured) and when the
-command misses a database on the search head - never on an indexer, where
-the app runs from the knowledge bundle. Once the old directory is gone it
+runs at the start of every updater run (even unconfigured), when the geoip
+command misses a database on the search head, and at the start of every
+search-head `geoipdebug` run (so it does not report a not-yet-migrated
+database as absent) - never on an indexer, where the app runs from the
+knowledge bundle. Once the old directory is gone it
 is a single `stat()` no-op. The move is link-then-unlink, which never
 overwrites: a file already in `databases/` is a fresher download, so the
 legacy copy is just deleted. It also never raises - searches and update

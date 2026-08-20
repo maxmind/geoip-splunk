@@ -26,6 +26,7 @@ from geoip_utils import (
     has_account_credentials,
     is_truthy,
     is_valid_database_name,
+    migrate_legacy_databases,
 )
 
 
@@ -120,6 +121,12 @@ def generate(command: Command) -> Iterator[dict[str, Any]]:
 
     configured = None
     if not on_indexer:
+        # After an upgrade the databases may still be in the pre-1.2.0
+        # location; without this, every database would report
+        # present=false while the geoip command (which also migrates)
+        # works. Never on an indexer: the app runs from the knowledge
+        # bundle there and has no legacy directory.
+        migrate_legacy_databases(_get_logger(session_key))
         configured = _get_configured_databases(session_key)
 
     events = list(_database_events(configured))
