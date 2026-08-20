@@ -64,10 +64,11 @@ baseline:
 
 - `component=database`: one event per configured database (from
   `geoip_databases.conf` via `get_configured_database_names`) with
-  `present`, `build_time` (mmdb metadata `build_epoch`), `database_type`,
-  and file path/size/mtime. A search-head run first migrates legacy
-  databases (like the geoip command on a miss), so an upgrade does not
-  show them as absent. On an indexer - or if the conf read fails -
+  `present`, `build_time` (mmdb metadata `build_epoch`, RFC 3339 UTC),
+  `database_type`, and file path/size/mtime. A search-head run first
+  migrates legacy databases (like the geoip command on a miss), so an
+  upgrade does not show them as absent. On an indexer - or if the conf
+  read fails -
   it lists the `*.mmdb` files in the database directory instead, which on
   an indexer is what the knowledge bundle carries. `database_source`
   (`configured`/`directory`) says which of the two produced the event,

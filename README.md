@@ -193,7 +193,7 @@ field instead of failing the search. Boolean fields hold the strings
 | `database` | The database name (e.g., "GeoLite2-City") |
 | `database_source` | Where the name came from: `configured` (the app's database list, so a never-downloaded database still gets an event) or `directory` (the `.mmdb` files present on this node - what indexers report, and the fallback when the configured list cannot be read) |
 | `present` | Whether the database file exists on this node |
-| `build_time` | When MaxMind built this copy of the database (ISO 8601 UTC) |
+| `build_time` | When MaxMind built this copy of the database (RFC 3339 UTC) |
 | `database_type` | The database type recorded in the file |
 | `file_path` | The path of the database file on this node |
 | `file_size_bytes` | The size of the database file |

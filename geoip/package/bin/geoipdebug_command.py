@@ -215,13 +215,13 @@ def _database_event(name: str, path: Path, *, source: str) -> dict[str, Any]:
 
     event["present"] = _bool_text(value=True)
     event["file_size_bytes"] = stat_result.st_size
-    event["file_mtime"] = _iso_utc(stat_result.st_mtime)
+    event["file_mtime"] = _rfc3339_utc(stat_result.st_mtime)
 
     try:
         with maxminddb.open_database(str(path)) as reader:
             metadata = reader.metadata()
         event["database_type"] = metadata.database_type
-        event["build_time"] = _iso_utc(metadata.build_epoch)
+        event["build_time"] = _rfc3339_utc(metadata.build_epoch)
     except Exception as exc:  # noqa: BLE001 - a corrupt file must not fail the search
         event["error"] = _error_text(exc)
 
@@ -237,8 +237,8 @@ def _error_text(exc: BaseException) -> str:
     return str(exc) or type(exc).__name__
 
 
-def _iso_utc(epoch: float) -> str:
-    """Format a Unix epoch as an ISO 8601 UTC timestamp."""
+def _rfc3339_utc(epoch: float) -> str:
+    """Format a Unix epoch as an RFC 3339 UTC timestamp."""
     return datetime.fromtimestamp(epoch, tz=UTC).isoformat()
 
 

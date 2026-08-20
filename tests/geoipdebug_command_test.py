@@ -126,7 +126,7 @@ def test_generate_reports_a_configured_database() -> None:
     assert event["file_size_bytes"] > 0
     assert event["database_type"] == "GeoIP2-Country"
     assert event.get("error") is None
-    # Both timestamps are ISO 8601 UTC.
+    # Both timestamps are RFC 3339 UTC.
     for field in ("file_mtime", "build_time"):
         parsed = datetime.fromisoformat(event[field])
         assert parsed.tzinfo == UTC
