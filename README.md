@@ -63,7 +63,7 @@ data from MaxMind databases.
 
 ### Syntax
 
-```
+```spl
 | geoip [prefix=<string>] [field=<string>] databases=<databases>
 ```
 
@@ -124,19 +124,19 @@ value from the last database in the list is used.
 
 Look up country information for the ip field:
 
-```
+```spl
 | makeresults | eval ip="8.8.8.8" | geoip databases=GeoIP2-Country
 ```
 
 Look up city information using a custom field:
 
-```
+```spl
 | ... | geoip field=client_ip databases=GeoIP2-City
 ```
 
 Combine country and anonymous IP detection with a prefix:
 
-```
+```spl
 | ... | geoip prefix=geo_ databases="GeoIP2-Country,GeoIP2-Anonymous-IP"
 ```
 
@@ -144,15 +144,114 @@ This produces fields like `geo_country.iso_code` and `geo_is_anonymous`.
 
 ### Error Handling
 
-- Events with missing or empty IP fields are passed through unchanged.
-- Events with invalid IP addresses are passed through unchanged.
-- Events with IPs not found in any database are passed through unchanged.
+- Events with missing or empty IP fields are passed through without
+  enrichment.
+- Events with invalid IP addresses are passed through without enrichment.
+- Events with IPs not found in any database are passed through without
+  enrichment.
 - If a specified database does not exist, the command raises an error.
 
 ### Supported Databases
 
 All MaxMind databases are supported. Make sure the database name in your
 search matches the name configured in the Databases tab.
+
+## Search Command: `geoipdebug`
+
+The `geoipdebug` command is a generating search command that reports
+diagnostic information about the app: which databases are present and how
+old they are, software versions, and the app's non-secret settings. Use it
+to check whether a node has up-to-date databases, and include its output
+when reporting a problem with the app.
+
+### Syntax
+
+```spl
+| geoipdebug [indexers=<bool>]
+```
+
+### Arguments
+
+**indexers** (optional, default: `false`)
+
+When true, the command also runs on the search peers (indexers), where it
+reports what each peer's knowledge bundle carries. See [Checking the
+Indexers](#checking-the-indexers).
+
+### Output
+
+The command generates one event per item. Every event has a `component`
+field saying what it describes and a `hostname` field saying which node
+reported it. A field that cannot be read shows `unknown` or an `error`
+field instead of failing the search. Boolean fields hold the strings
+`true` and `false`.
+
+**component=database** - one event per configured database:
+
+| Field | Description |
+|-------|-------------|
+| `database` | The database name (e.g., "GeoLite2-City") |
+| `database_source` | Where the name came from: `configured` (the app's database list, so a never-downloaded database still gets an event) or `directory` (the `.mmdb` files present on this node - what indexers report, and the fallback when the configured list cannot be read) |
+| `present` | Whether the database file exists on this node |
+| `build_time` | When MaxMind built this copy of the database (RFC 3339 UTC) |
+| `database_type` | The database type recorded in the file |
+| `file_path` | The path of the database file on this node |
+| `file_size_bytes` | The size of the database file |
+| `file_mtime` | When the file was last written on this node (RFC 3339 UTC). On the search head that is when the updater last downloaded it; on a search peer the file comes from the knowledge bundle |
+| `error` | Why the database or its metadata could not be read |
+
+An old `build_time` under a recent `file_mtime` means MaxMind has not
+published a newer build. On the search head, an old `file_mtime` means
+the updater has not downloaded anything recently on this node.
+
+**component=system** - one event:
+
+| Field | Description |
+|-------|-------------|
+| `app_version` | The GeoIP app's version |
+| `splunk_version` | The Splunk server version |
+| `python_version` | The Python interpreter version the app runs under |
+| `database_directory` | The directory this node reads databases from |
+| `on_indexer` | Whether this event came from an indexer |
+
+**component=settings** - one event (not reported by indexers, where the
+app's configuration is not available):
+
+| Field | Description |
+|-------|-------------|
+| `loglevel` | The app's configured log level |
+| `run_on_indexers` | The "Run on indexers" setting |
+| `databases_configured` | Comma-separated configured database names |
+| `credentials_configured` | Whether a usable MaxMind account ID and license key are configured (the same checks the updater applies) - the values themselves are never output |
+
+### Examples
+
+Show the databases on the search head:
+
+```spl
+| geoipdebug
+| where component="database"
+| table database present build_time file_mtime error
+```
+
+In a search head cluster, a search reports only the member it runs on. To
+compare members, run the search on each member.
+
+### Checking the Indexers
+
+With `indexers=true`, the command runs on the search head and on each
+search peer. The peers report the database copies their knowledge bundle
+carries; the `hostname` field says which node reported each event:
+
+```spl
+| geoipdebug indexers=true
+| table hostname component database present build_time error
+```
+
+While **Run on indexers** is disabled, the databases are not in the
+knowledge bundle, so the peers report no database events. That is the
+expected result, not a failure. See [Running on
+Indexers](#running-on-indexers).
 
 ## Running on Indexers
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0 (unreleased)
+
+* Fix the `geoip` command silently dropping fields from some events. The
+  Splunk SDK locks the set of output fields to the fields of the first
+  result in each chunk, so any event whose lookup produced a field the
+  chunk's first event did not have lost that field. Most visibly, one
+  event with a missing, invalid, or not-found IP at the head of a chunk
+  stripped all enrichment from every other event in it, with no error
+  anywhere; less visibly, fields that vary between matched IPs (city,
+  subdivisions, postal) were dropped from events whose chunk started
+  with an IP that lacked them. All events in a chunk now carry the same
+  field set, with empty values where a field does not apply.
+* Add the `geoipdebug` diagnostic search command. It generates one event
+  per configured database with its build time, type, and file details, plus
+  events with the app, Splunk, and Python versions and the app's non-secret
+  settings. With `indexers=true` it runs on the indexers and reports the
+  database copies their knowledge bundle carries.
+
 ## 1.2.0 (2026-07-29)
 
 * Revert the scripted-input experiment from 1.1.3. The scripted input did

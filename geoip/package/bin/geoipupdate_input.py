@@ -17,10 +17,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from geoip_utils import (
     APP_NAME,
+    SETTINGS_CREDENTIAL_REALM,
+    get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
     get_logger,
     migrate_legacy_databases,
+    validate_account_credentials,
 )
 from pygeoipupdate import Config, Updater
 from pygeoipupdate.errors import GeoIPUpdateError
@@ -137,27 +140,17 @@ def _get_account_credentials(session_key: str) -> tuple[int, str]:
         cfm = conf_manager.ConfManager(
             session_key,
             APP_NAME,
-            realm=f"__REST_CREDENTIAL__#{APP_NAME}#configs/conf-{APP_NAME}_settings",
+            realm=SETTINGS_CREDENTIAL_REALM,
         )
         conf = cfm.get_conf(f"{APP_NAME}_settings")
         account_stanza = conf.get("account", only_current_app=True)
     except (ConfManagerException, ConfStanzaNotExistException) as e:
         raise ValueError(msg) from e
 
-    account_id_str = account_stanza.get("account_id")
-    license_key = account_stanza.get("license_key")
-
-    if not account_id_str or not license_key:
-        raise ValueError(msg)
-
-    if not account_id_str.isdigit():
-        msg = (
-            f"MaxMind account ID must be a number, got '{account_id_str}'. "
-            "Go to Configuration > MaxMind Account to correct your account ID."
-        )
-        raise ValueError(msg)
-
-    return int(account_id_str), license_key
+    return validate_account_credentials(
+        account_stanza.get("account_id"),
+        account_stanza.get("license_key"),
+    )
 
 
 def _get_database_names(session_key: str) -> list[str]:
@@ -173,26 +166,13 @@ def _get_database_names(session_key: str) -> list[str]:
         ValueError: If no databases are configured.
 
     """
-    msg = (
-        "No databases configured. "
-        "Go to Configuration > Databases to add databases to download."
-    )
-
-    try:
-        cfm = conf_manager.ConfManager(
-            session_key,
-            APP_NAME,
-        )
-        conf = cfm.get_conf(f"{APP_NAME}_databases")
-    except ConfManagerException as e:
-        raise ValueError(msg) from e
-
-    # Get all stanzas except 'default'
-    databases = [
-        name for name in conf.get_all(only_current_app=True) if name != "default"
-    ]
+    databases = get_configured_database_names(session_key)
 
     if not databases:
+        msg = (
+            "No databases configured. "
+            "Go to Configuration > Databases to add databases to download."
+        )
         raise ValueError(msg)
 
     return databases
@@ -252,7 +232,7 @@ def _run_update(
 # Entry point for Splunk modular input
 if __name__ == "__main__":
     # Import here to avoid issues when module is imported for testing
-    from splunklib.modularinput import (  # type: ignore[import-not-found]
+    from splunklib.modularinput import (
         Argument,
         Scheme,
         Script,

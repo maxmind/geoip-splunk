@@ -416,76 +416,21 @@ def test_get_account_credentials_raises_when_conf_missing() -> None:
 
 def test_get_database_names_returns_database_list() -> None:
     """Test _get_database_names returns list of database names."""
-    mock_conf = MagicMock()
-    mock_conf.get_all.return_value = {
-        "GeoLite2-Country": {},
-        "GeoLite2-City": {},
-    }
-
-    mock_cfm = MagicMock()
-    mock_cfm.get_conf.return_value = mock_conf
-
-    mock_conf_manager.ConfManager.return_value = mock_cfm
-
-    databases = _get_database_names("session_key")
+    with patch(
+        "geoipupdate_input.get_configured_database_names",
+        return_value=["GeoLite2-Country", "GeoLite2-City"],
+    ):
+        databases = _get_database_names("session_key")
 
     assert databases == ["GeoLite2-Country", "GeoLite2-City"]
 
 
-def test_get_database_names_excludes_default_stanza() -> None:
-    """Test _get_database_names filters out the 'default' stanza."""
-    mock_conf = MagicMock()
-    mock_conf.get_all.return_value = {
-        "default": {},
-        "GeoLite2-Country": {},
-    }
-
-    mock_cfm = MagicMock()
-    mock_cfm.get_conf.return_value = mock_conf
-
-    mock_conf_manager.ConfManager.return_value = mock_cfm
-
-    databases = _get_database_names("session_key")
-
-    assert databases == ["GeoLite2-Country"]
-
-
 def test_get_database_names_raises_when_empty() -> None:
     """Test _get_database_names raises ValueError when no databases configured."""
-    mock_conf = MagicMock()
-    mock_conf.get_all.return_value = {}
-
-    mock_cfm = MagicMock()
-    mock_cfm.get_conf.return_value = mock_conf
-
-    mock_conf_manager.ConfManager.return_value = mock_cfm
-
-    with pytest.raises(ValueError, match="No databases configured"):
-        _get_database_names("session_key")
-
-
-def test_get_database_names_raises_when_only_default() -> None:
-    """Test _get_database_names raises ValueError when only default stanza exists."""
-    mock_conf = MagicMock()
-    mock_conf.get_all.return_value = {"default": {}}
-
-    mock_cfm = MagicMock()
-    mock_cfm.get_conf.return_value = mock_conf
-
-    mock_conf_manager.ConfManager.return_value = mock_cfm
-
-    with pytest.raises(ValueError, match="No databases configured"):
-        _get_database_names("session_key")
-
-
-def test_get_database_names_raises_when_conf_missing() -> None:
-    """Test _get_database_names raises ValueError on fresh install."""
-    mock_cfm = MagicMock()
-    mock_cfm.get_conf.side_effect = ConfManagerException("Config file not found")
-
-    mock_conf_manager.ConfManager.return_value = mock_cfm
-
-    with pytest.raises(ValueError, match="No databases configured"):
+    with (
+        patch("geoipupdate_input.get_configured_database_names", return_value=[]),
+        pytest.raises(ValueError, match="No databases configured"),
+    ):
         _get_database_names("session_key")
 
 

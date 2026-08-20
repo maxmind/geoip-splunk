@@ -234,7 +234,40 @@ def test_multiple_events() -> None:
     ]
     results = list(geoip_command.stream(command, iter(events)))
 
-    assert results == [EXPECTED_US, {"ip": "invalid"}, {"other": "field"}]
+    # Every event carries the union of all events' fields, missing ones
+    # backfilled with None (see test_unmatched_first_event_keeps_later_enrichment).
+    all_fields = EXPECTED_US.keys() | {"other"}
+    expected_us = dict.fromkeys(all_fields) | EXPECTED_US
+    expected_invalid = dict.fromkeys(all_fields) | {"ip": "invalid"}
+    expected_other = dict.fromkeys(all_fields) | {"other": "field"}
+    assert results == [expected_us, expected_invalid, expected_other]
+
+
+def test_unmatched_first_event_keeps_later_enrichment() -> None:
+    """A pass-through event first in the chunk must not cost the later
+    events their enrichment: the SDK's record writer locks the output
+    field set to the first record's keys in each chunk, so every event
+    has to carry every field."""
+    command = MockCommand(field="ip")
+    events = [{"ip": "8.8.8.8"}, {"ip": "214.78.120.1"}]
+    results = list(geoip_command.stream(command, iter(events)))
+
+    assert results[1]["country.iso_code"] == "US"
+    assert results[0].keys() == results[1].keys()
+    assert results[0]["network"] is None
+
+
+def test_matched_events_share_field_union() -> None:
+    """Fields vary between matched IPs too (in City-Test, 2001:218::1
+    has no city or subdivisions), and the record writer's field lock
+    would drop a later event's extra fields just the same."""
+    command = MockCommand(databases="GeoIP2-City-Test")
+    events = [{"ip": "2001:218::1"}, {"ip": "89.160.20.112"}]
+    results = list(geoip_command.stream(command, iter(events)))
+
+    assert results[1]["city.names.en"] == "Linköping"
+    assert results[0].keys() == results[1].keys()
+    assert results[0]["city.names.en"] is None
 
 
 def test_default_field() -> None:

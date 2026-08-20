@@ -2,12 +2,15 @@
 
 import logging
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 try:
     from solnlib import conf_manager
     from solnlib import log as solnlib_log
+    from solnlib.soln_exceptions import ConfManagerException
 
     _HAS_SOLNLIB = True
 except ImportError:
@@ -16,6 +19,12 @@ except ImportError:
 
 APP_NAME = "geoip"
 CONF_NAME = f"{APP_NAME}_settings"
+
+# The realm UCC's REST handlers store the encrypted account fields under in
+# passwords.conf. solnlib needs it to decrypt the account stanza - reading
+# the stanza without it raises CredentialNotExistException (verified on a
+# live cluster) instead of returning the masked values.
+SETTINGS_CREDENTIAL_REALM = f"__REST_CREDENTIAL__#{APP_NAME}#configs/conf-{CONF_NAME}"
 
 # Whether the MaxMind databases ride the knowledge bundle to indexers is
 # controlled through this [replicationAllowlist] key in distsearch.conf. The
@@ -109,6 +118,40 @@ def is_truthy(value: object) -> bool:
     command so both sides of the "Run on indexers" toggle agree.
     """
     return str(value).strip().lower() in ("1", "true", "yes")
+
+
+# Valid database name pattern (alphanumeric, underscores, and hyphens only)
+_VALID_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def is_valid_database_name(name: str) -> bool:
+    """Whether a database name is safe to join onto the database directory.
+
+    Database names arrive from search arguments and user configuration
+    and become file paths, so restrict them to characters that cannot
+    traverse paths. Shared by the geoip and geoipdebug commands.
+    """
+    return bool(_VALID_DB_NAME.match(name))
+
+
+def fill_missing_event_fields(events: list[dict[str, Any]]) -> None:
+    """Give every event the union of all events' fields, in place.
+
+    The SDK's record writer locks the output field set to the keys of the
+    first record it writes in each output chunk (splunklib
+    internals.RecordWriter._write_record; RecordWriterV2._clear resets it
+    per chunk), so a field that only later events in the chunk have would
+    silently vanish from the results. Backfilling with None keeps the
+    value empty in the output, like a genuinely absent field.
+
+    Shared by the geoip and geoipdebug commands, whose events' fields
+    vary per event: the database fields depend on the IP looked up, and
+    the diagnostic fields depend on the component.
+    """
+    all_fields = {key: None for event in events for key in event}
+    for event in events:
+        for key in all_fields:
+            event.setdefault(key, None)
 
 
 def migrate_legacy_databases(logger: logging.Logger) -> None:
@@ -264,7 +307,7 @@ def get_database_directory() -> Path:
     return Path(__file__).resolve().parent.parent / "databases"
 
 
-def get_run_on_indexers_setting(session_key: str) -> object:
+def get_run_on_indexers_setting(session_key: str) -> object | None:
     """Read the raw "Run on indexers" value from geoip_settings.conf.
 
     Reads through solnlib with app_name pinned to the geoip app, like
@@ -277,11 +320,128 @@ def get_run_on_indexers_setting(session_key: str) -> object:
     part of the knowledge bundle, but the setting is only read on the
     search head); callers decide the fallback.
     """
+    return get_setting(session_key, DISTRIBUTION_STANZA, RUN_ON_INDEXERS_FIELD)
+
+
+def get_setting(session_key: str, stanza_name: str, field: str) -> object | None:
+    """Read one field of geoip_settings.conf.
+
+    The shipped default/geoip_settings.conf (UCC generates it from the
+    globalConfig defaults) means the conf and its stanzas exist on any
+    healthy install, and the conf endpoint merges default/ and local/.
+    So there is no missing-because-never-saved case to soften: a read
+    that fails is abnormal and raises, including when solnlib is
+    unavailable, and callers decide the fallback. None means the field
+    itself is absent from both default/ and local/.
+    """
     if not _HAS_SOLNLIB:
         msg = "solnlib is unavailable; cannot read geoip_settings.conf"
         raise RuntimeError(msg)
     conf = conf_manager.ConfManager(session_key, APP_NAME).get_conf(CONF_NAME)
-    return conf.get(DISTRIBUTION_STANZA).get(RUN_ON_INDEXERS_FIELD)
+    value: object | None = conf.get(stanza_name).get(field)
+    return value
+
+
+def get_configured_database_names(session_key: str) -> list[str]:
+    """Get configured database names from geoip_databases.conf.
+
+    Reads through solnlib with app_name pinned to the geoip app, like
+    get_run_on_indexers_setting. Returns a possibly-empty list; callers
+    decide whether an empty list is an error. The conf file not existing
+    (it is only created when the first database is added) means the same
+    as an empty one: nothing is configured.
+
+    Raises on any other failure, including solnlib being unavailable (it
+    is not part of the knowledge bundle, but the conf is only read on the
+    search head); callers decide the fallback.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_databases.conf"
+        raise RuntimeError(msg)
+
+    cfm = conf_manager.ConfManager(
+        session_key,
+        APP_NAME,
+    )
+    try:
+        conf = cfm.get_conf(f"{APP_NAME}_databases")
+    except ConfManagerException:
+        return []
+
+    # Get all stanzas except 'default'
+    return [name for name in conf.get_all(only_current_app=True) if name != "default"]
+
+
+def has_account_credentials(session_key: str) -> bool:
+    """Whether usable MaxMind credentials are configured, as a boolean only.
+
+    Reads the account stanza of geoip_settings.conf through solnlib with
+    the credential realm, like the updater's _get_account_credentials -
+    solnlib needs the realm to decrypt the stanza's encrypted fields, and
+    without it the read raises once credentials are saved (see
+    SETTINGS_CREDENTIAL_REALM). The decrypted values only ever feed the
+    boolean; they are never returned or logged.
+
+    Applies validate_account_credentials - exactly the updater's
+    acceptance checks - so a credential the updater rejects (say a typo'd
+    account ID, which fails every update) does not report a clean bill of
+    health.
+
+    Raises on any failure, including solnlib being unavailable; callers
+    decide the fallback. The account stanza always exists - the shipped
+    default/geoip_settings.conf carries it with empty values - so a
+    failed read means something is broken, not a fresh install.
+    """
+    if not _HAS_SOLNLIB:
+        msg = "solnlib is unavailable; cannot read geoip_settings.conf"
+        raise RuntimeError(msg)
+
+    cfm = conf_manager.ConfManager(
+        session_key,
+        APP_NAME,
+        realm=SETTINGS_CREDENTIAL_REALM,
+    )
+    stanza = cfm.get_conf(CONF_NAME).get("account", only_current_app=True)
+    try:
+        validate_account_credentials(
+            stanza.get("account_id"),
+            stanza.get("license_key"),
+        )
+    except ValueError:
+        return False
+    return True
+
+
+def validate_account_credentials(
+    account_id: str | None,
+    license_key: str | None,
+) -> tuple[int, str]:
+    """Validate decrypted account values the way the updater accepts them.
+
+    The one home of the acceptance policy (both values present, account
+    ID numeric), so every reader of the account stanza agrees on what
+    counts as usable credentials.
+
+    Raises:
+        ValueError: If a value is missing or the account ID is not a
+            number, with a message telling the user what to fix.
+
+    """
+    if not account_id or not license_key:
+        msg = (
+            "MaxMind account credentials not configured. "
+            "Go to Configuration > MaxMind Account to enter your credentials."
+        )
+        raise ValueError(msg)
+
+    if not account_id.isdigit():
+        msg = (
+            f"MaxMind account ID must be a number, got '{account_id}'. "
+            "Go to Configuration > MaxMind Account to correct your account ID."
+        )
+        raise ValueError(msg)
+
+    return int(account_id), license_key
 
 
 def get_fallback_logger() -> logging.Logger:

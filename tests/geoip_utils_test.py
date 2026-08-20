@@ -6,7 +6,7 @@ import errno
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -18,6 +18,25 @@ if TYPE_CHECKING:
 repo_root = Path(__file__).parent.parent
 lib_dir = repo_root / "geoip" / "package" / "lib"
 sys.path.insert(0, str(lib_dir))
+
+
+def test_solnlib_import_surface() -> None:
+    """geoip_utils binds its solnlib names inside a try/except
+    ImportError, so a renamed or moved name would silently set
+    _HAS_SOLNLIB = False app-wide while every mock-based test kept
+    passing. solnlib is installed in the dev venv so this test can check
+    the bound names are the real ones. It must not import solnlib
+    itself: other test files replace the solnlib entries in sys.modules
+    with mocks at collection time."""
+    import geoip_utils  # noqa: PLC0415
+
+    # Through Any: mypy objects to the implicit re-exports, but reaching
+    # the module attributes as bound is the point of the test. The
+    # attributes only exist when the import succeeded.
+    utils: Any = geoip_utils
+    assert utils.ConfManagerException.__module__ == "solnlib.soln_exceptions"
+    assert utils.conf_manager.__name__ == "solnlib.conf_manager"
+    assert utils.solnlib_log.__name__ == "solnlib.log"
 
 
 def test_get_database_directory_with_env_override(
@@ -264,6 +283,59 @@ def test_is_truthy() -> None:
     assert not geoip_utils.is_truthy(None)
 
 
+@pytest.mark.parametrize(
+    ("name", "valid"),
+    [
+        ("GeoIP2-Country", True),
+        ("GeoLite2_City", True),
+        ("db1", True),
+        ("", False),
+        ("../etc/passwd", False),
+        ("name.mmdb", False),
+        ("name with spaces", False),
+    ],
+)
+def test_is_valid_database_name(name: str, valid: bool) -> None:  # noqa: FBT001
+    import geoip_utils  # noqa: PLC0415
+
+    assert geoip_utils.is_valid_database_name(name) is valid
+
+
+def test_fill_missing_event_fields_backfills_the_union() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = [{"a": 1}, {"b": 2}, {"a": 3, "c": 4}]
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == [
+        {"a": 1, "b": None, "c": None},
+        {"a": None, "b": 2, "c": None},
+        {"a": 3, "b": None, "c": 4},
+    ]
+
+
+def test_fill_missing_event_fields_keeps_falsy_values() -> None:
+    """setdefault must not clobber a field that is present but falsy."""
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = [{"a": 0, "b": ""}, {"c": None}]
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == [
+        {"a": 0, "b": "", "c": None},
+        {"a": None, "b": None, "c": None},
+    ]
+
+
+def test_fill_missing_event_fields_empty_list() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    events: list[dict[str, Any]] = []
+    geoip_utils.fill_missing_event_fields(events)
+
+    assert events == []
+
+
 def test_get_run_on_indexers_setting_reads_from_the_geoip_namespace() -> None:
     """The read must pin app_name to the geoip app: the command can be
     dispatched from any app, and the dispatching app's namespace only
@@ -296,3 +368,285 @@ def test_get_run_on_indexers_setting_raises_without_solnlib() -> None:
         pytest.raises(RuntimeError, match="solnlib is unavailable"),
     ):
         geoip_utils.get_run_on_indexers_setting("test_session_key")
+
+
+def test_get_setting_returns_the_field_value() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = {"loglevel": "DEBUG"}
+
+        result = geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+    conf.get.assert_called_once_with("logging")
+    assert result == "DEBUG"
+
+
+def test_get_setting_none_when_the_field_is_missing() -> None:
+    """A field absent from both default/ and local/ reads as None."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = {"other": "1"}
+
+        assert (
+            geoip_utils.get_setting("test_session_key", "logging", "loglevel") is None
+        )
+
+
+def test_get_setting_raises_when_the_read_fails() -> None:
+    """The shipped default/geoip_settings.conf means the conf and its
+    stanzas exist on any healthy install, so a failed read is a fault to
+    surface, not a fresh install; the caller decides the fallback."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = RuntimeError(
+            "splunkd unreachable"
+        )
+
+        with pytest.raises(RuntimeError, match="splunkd unreachable"):
+            geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+
+def test_get_setting_raises_without_solnlib() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.get_setting("test_session_key", "logging", "loglevel")
+
+
+def test_get_configured_database_names_reads_from_the_geoip_namespace() -> None:
+    """The read must pin app_name to the geoip app, like the other
+    conf reads in this module."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {
+            "GeoLite2-Country": {},
+            "GeoLite2-City": {},
+        }
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    manager_mod.ConfManager.assert_called_once_with("test_session_key", "geoip")
+    manager_mod.ConfManager.return_value.get_conf.assert_called_once_with(
+        "geoip_databases"
+    )
+    conf.get_all.assert_called_once_with(only_current_app=True)
+    assert result == ["GeoLite2-Country", "GeoLite2-City"]
+
+
+def test_get_configured_database_names_excludes_default_stanza() -> None:
+    """The 'default' stanza is conf plumbing, not a configured database."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {
+            "default": {},
+            "GeoLite2-Country": {},
+        }
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == ["GeoLite2-Country"]
+
+
+def test_get_configured_database_names_returns_empty_list() -> None:
+    """No configured databases is not an error here; callers decide."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get_all.return_value = {"default": {}}
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == []
+
+
+def test_get_configured_database_names_empty_when_the_conf_is_missing() -> None:
+    """The conf file only exists once the first database is added, so a
+    missing file means nothing is configured, not an error."""
+    import geoip_utils  # noqa: PLC0415
+
+    class ManagerError(Exception):
+        pass
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+        patch.object(
+            geoip_utils,
+            "ConfManagerException",
+            new=ManagerError,
+            create=True,
+        ),
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = ManagerError(
+            "Config file not found"
+        )
+
+        result = geoip_utils.get_configured_database_names("test_session_key")
+
+    assert result == []
+
+
+def test_get_configured_database_names_raises_without_solnlib() -> None:
+    """On an indexer solnlib is absent; the caller's fallback handles it."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.get_configured_database_names("test_session_key")
+
+
+def test_has_account_credentials_true_when_both_fields_set() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        # The realm makes solnlib return the stanza decrypted, so the
+        # values here look like real credentials, not masked ones.
+        conf.get.return_value = {
+            "account_id": "123456",
+            "license_key": "abcdef0123456789",
+        }
+
+        result = geoip_utils.has_account_credentials("test_session_key")
+
+    manager_mod.ConfManager.assert_called_once_with(
+        "test_session_key",
+        "geoip",
+        realm="__REST_CREDENTIAL__#geoip#configs/conf-geoip_settings",
+    )
+    conf.get.assert_called_once_with("account", only_current_app=True)
+    assert result is True
+
+
+@pytest.mark.parametrize(
+    "stanza",
+    [
+        {},
+        {"account_id": "123456"},
+        {"license_key": "abcdef0123456789"},
+        {"account_id": "", "license_key": "abcdef0123456789"},
+        # The updater rejects a non-numeric account ID (it does not
+        # strip either), so these are not usable credentials even though
+        # both fields are set.
+        {"account_id": " 123456", "license_key": "abcdef0123456789"},
+        {"account_id": "12345a", "license_key": "abcdef0123456789"},
+        {"account_id": "123456", "license_key": ""},
+        {"account_id": None, "license_key": "abcdef0123456789"},
+    ],
+)
+def test_has_account_credentials_false_when_a_field_is_missing_or_invalid(
+    stanza: dict[str, object],
+) -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        conf = manager_mod.ConfManager.return_value.get_conf.return_value
+        conf.get.return_value = stanza
+
+        assert geoip_utils.has_account_credentials("test_session_key") is False
+
+
+def test_has_account_credentials_raises_when_the_read_fails() -> None:
+    """The shipped default/geoip_settings.conf carries an empty account
+    stanza, so a failed read means something is broken, not a fresh
+    install; the caller decides the fallback."""
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=True),
+        patch.object(geoip_utils, "conf_manager", create=True) as manager_mod,
+    ):
+        manager_mod.ConfManager.return_value.get_conf.side_effect = RuntimeError(
+            "splunkd unreachable"
+        )
+
+        with pytest.raises(RuntimeError, match="splunkd unreachable"):
+            geoip_utils.has_account_credentials("test_session_key")
+
+
+def test_has_account_credentials_raises_without_solnlib() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with (
+        patch.object(geoip_utils, "_HAS_SOLNLIB", new=False),
+        pytest.raises(RuntimeError, match="solnlib is unavailable"),
+    ):
+        geoip_utils.has_account_credentials("test_session_key")
+
+
+def test_validate_account_credentials_accepts_the_updater_form() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    result = geoip_utils.validate_account_credentials("123456", "abcdef0123456789")
+
+    assert result == (123456, "abcdef0123456789")
+
+
+@pytest.mark.parametrize(
+    ("account_id", "license_key"),
+    [
+        (None, "abcdef0123456789"),
+        ("", "abcdef0123456789"),
+        ("123456", None),
+        ("123456", ""),
+    ],
+)
+def test_validate_account_credentials_rejects_missing_values(
+    account_id: str | None,
+    license_key: str | None,
+) -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    with pytest.raises(ValueError, match="not configured"):
+        geoip_utils.validate_account_credentials(account_id, license_key)
+
+
+@pytest.mark.parametrize("account_id", ["12345a", " 123", "1.5", "-1"])
+def test_validate_account_credentials_rejects_a_non_numeric_id(
+    account_id: str,
+) -> None:
+    """No leniency the updater does not have: it does not strip, so a
+    padded account ID fails every update and must fail here too."""
+    import geoip_utils  # noqa: PLC0415
+
+    with pytest.raises(ValueError, match="must be a number"):
+        geoip_utils.validate_account_credentials(account_id, "abcdef0123456789")
