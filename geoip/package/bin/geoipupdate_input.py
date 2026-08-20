@@ -90,7 +90,18 @@ def run_database_update(session_key: str) -> None:
         session_key: Splunk session key for REST API calls.
 
     """
-    logger = get_logger(session_key)
+    # Guarded like the other get_logger call sites: it reads the log level
+    # over REST, so on a member where conf reads are broken it raises -
+    # and the migration below, which needs no REST, must still run there.
+    # (The marker sync cannot help on such a member - its own settings
+    # read fails the same way and it bails - but the run must still reach
+    # it, and the configuration checks after it, so each can log what it
+    # skipped.)
+    try:
+        logger = get_logger(session_key)
+    except Exception:
+        logger = get_fallback_logger()
+        logger.exception("Could not build the configured logger")
 
     # Before the configuration checks: databases left in the pre-1.2.0
     # location should move even while the input is unconfigured.
@@ -100,7 +111,7 @@ def run_database_update(session_key: str) -> None:
     # track the "Run on indexers" setting even while the updater is
     # unconfigured, and this run may be the first one after the restart
     # that loaded the setting's replication rules.
-    _sync_replication_marker(session_key, logger)
+    _sync_replication_marker_from_settings(session_key, logger)
 
     try:
         account_id, license_key = _get_account_credentials(session_key)
@@ -127,7 +138,7 @@ def run_database_update(session_key: str) -> None:
         logger.exception("Unexpected error during database update")
 
 
-def _sync_replication_marker(session_key: str, logger: logging.Logger) -> None:
+def _sync_replication_marker_from_settings(session_key: str, logger: logging.Logger) -> None:
     """Sync the bundle state marker to the "Run on indexers" setting.
 
     The settings handler writes the marker on save, but only on the search

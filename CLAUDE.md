@@ -192,9 +192,9 @@ The input gracefully handles incomplete configuration - it logs a warning and
 skips the update until both credentials and databases are configured.
 
 Before the configuration checks, every run also migrates legacy databases and
-syncs the knowledge bundle state marker (`_sync_replication_marker`, see
-"Command distribution" below) - both must happen even while the updater is
-unconfigured.
+syncs the knowledge bundle state marker
+(`_sync_replication_marker_from_settings`, see "Command distribution" below) -
+both must happen even while the updater is unconfigured.
 
 #### Modular Input Registration
 
