@@ -13,6 +13,8 @@ To update all dependencies:
 # Check for latest versions of mise tools
 mise latest aqua:astral-sh/uv
 mise latest github:houseabsolute/precious
+mise latest node
+mise latest npm:prettier
 
 # After updating mise.toml, regenerate the lock file
 mise lock

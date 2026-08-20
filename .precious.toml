@@ -21,6 +21,21 @@ invoke = "once"
 cmd = ["uv", "run", "--quiet", "mypy"]
 ok-exit-codes = 0
 
+# Prettier tidies and lints Markdown, matching the setup in our other repos
+# (geoipupdate, mmdbconvert, mmdbinspect, ...). The wrap width and indentation
+# come from .prettierrc.json; --prose-wrap is repeated here to match those
+# repos.
+[commands.prettier-markdown]
+type = "both"
+cmd = ["prettier", "--prose-wrap", "always"]
+lint-flags = ["--check"]
+tidy-flags = ["--write"]
+path-args = "absolute-file"
+include = "**/*.md"
+# tests/data is the MaxMind-DB submodule - not ours to reformat.
+exclude = ["tests/data/**"]
+ok-exit-codes = 0
+
 # Splunk AppInspect validates the built package for Splunk Cloud compatibility.
 [commands.appinspect]
 type = "lint"

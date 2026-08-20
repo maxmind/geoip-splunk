@@ -235,7 +235,16 @@ This IP is good for testing field merging and smallest-network selection.
 
 ## Linting
 
-Uses ruff (linting + formatting) and mypy (type checking), orchestrated via precious (`precious lint -g`).
+Uses ruff (linting + formatting) and mypy (type checking) for Python, and
+prettier for Markdown, orchestrated via precious (`precious lint -g`).
+
+The prettier setup mirrors our other repos (geoipupdate, mmdbconvert,
+mmdbinspect, and others): mise installs node and prettier,
+`.prettierrc.json` sets `proseWrap: always` with an 80 column width, and a
+`prettier-markdown` command in `.precious.toml` checks (`--check`) or
+rewrites (`--write`) every `*.md` file. The `tests/data` submodule is
+excluded - it is MaxMind-DB, not ours to reformat. Note that prettier
+rewrites `*` bullets as `-` and pads table cells to align.
 
 For Splunk Cloud compatibility, use `splunk-appinspect` to validate the built package:
 ```bash
@@ -457,7 +466,7 @@ own defaults never escape dots, e.g. `*.conf`, `....pyc$`,
 
 There are three places where dependencies are managed:
 
-- **Dev tools**: `mise.toml` - uv, precious (managed by mise); Python is managed by uv
+- **Dev tools**: `mise.toml` - uv, precious, node and prettier (managed by mise); Python is managed by uv
 - **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC framework (managed by uv)
 - **App runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib, splunk-sdk, solnlib, maxminddb, pygeoipupdate (installed into app's lib/ at build time)
 
