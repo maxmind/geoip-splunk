@@ -197,7 +197,7 @@ field instead of failing the search. Boolean fields hold the strings
 | `database_type` | The database type recorded in the file |
 | `file_path` | The path of the database file on this node |
 | `file_size_bytes` | The size of the database file |
-| `file_mtime` | When the file was last written on this node. On the search head that is when the updater last downloaded it; on a search peer the file comes from the knowledge bundle |
+| `file_mtime` | When the file was last written on this node (RFC 3339 UTC). On the search head that is when the updater last downloaded it; on a search peer the file comes from the knowledge bundle |
 | `error` | Why the database or its metadata could not be read |
 
 An old `build_time` under a recent `file_mtime` means MaxMind has not
