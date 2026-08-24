@@ -892,3 +892,22 @@ def test_get_logger_or_fallback_never_raises() -> None:
         logger = geoip_utils.get_logger_or_fallback("test_session_key")
 
     assert logger is geoip_utils.get_fallback_logger()
+
+
+def test_get_logger_or_fallback_attempts_a_failing_lookup_only_once() -> None:
+    """get_logger's own lru_cache does not cache exceptions, so without a
+    cache here every call on a broken node re-attempts the REST read and
+    logs another traceback - once per event in the geoip command's
+    stream(), so a chunk of unmatched IPs would produce N of each."""
+    import geoip_utils  # noqa: PLC0415
+
+    with patch.object(
+        geoip_utils,
+        "get_logger",
+        side_effect=RuntimeError("splunkd unreachable"),
+    ) as get_logger_mock:
+        first = geoip_utils.get_logger_or_fallback("test_session_key")
+        second = geoip_utils.get_logger_or_fallback("test_session_key")
+
+    get_logger_mock.assert_called_once()
+    assert second is first

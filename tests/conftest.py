@@ -61,6 +61,21 @@ def _isolate_lookups_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
 
 
 @pytest.fixture(autouse=True)
+def _clear_logger_caches() -> None:
+    """Empty the lru_caches on geoip_utils' logger lookups.
+
+    Both caches live as long as the process and are keyed by the session
+    key, which is the same mock value across most tests. Without
+    clearing, a test that builds a logger leaves it cached, and a later
+    test patching geoip_utils.get_logger with a side_effect would get
+    the cached logger instead - its broken-logger path silently never
+    exercised, passing or failing on execution order.
+    """
+    geoip_utils.get_logger.cache_clear()
+    geoip_utils.get_logger_or_fallback.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _clear_reader_cache() -> None:
     """Empty geoip_command's module-level reader cache.
 

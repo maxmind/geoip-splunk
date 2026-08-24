@@ -565,6 +565,7 @@ def validate_account_credentials(
     return int(account_id), license_key
 
 
+@lru_cache(maxsize=1)
 def get_logger_or_fallback(session_key: str) -> logging.Logger:
     """Get the app logger, or the basic fallback instead of raising.
 
@@ -575,6 +576,13 @@ def get_logger_or_fallback(session_key: str) -> logging.Logger:
     The one home of that guard, so no caller re-implements it subtly
     differently. The failed lookup itself is logged through the fallback,
     which touches nothing remote.
+
+    get_logger's own cache does not cover the failure case (lru_cache
+    does not cache exceptions), so the cache here is what makes the
+    first failure the only one: without it, every call on a broken node
+    re-attempts the REST read and logs another traceback - once per
+    event in the geoip command's stream(). One entry for the same
+    reason as get_logger: the log level is global.
     """
     try:
         return get_logger(session_key)
