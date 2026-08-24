@@ -399,18 +399,17 @@ def sync_replication_marker(
             # replace() consumed the scratch file on success, so this
             # only removes it after a failure.
             tmp_path.unlink(missing_ok=True)
+        logger_factory().info(
+            "Recorded run_on_indexers=%s in %s",
+            run_on_indexers,
+            marker_path,
+        )
     except Exception:  # the marker must never take down the caller
         logger = logger_factory()
         logger.exception(
             "Failed to write the bundle state marker %s; a changed "
             '"Run on indexers" setting may not reach the search peers '
             "until some other replicated app file changes",
-            marker_path,
-        )
-    else:
-        logger_factory().info(
-            "Recorded run_on_indexers=%s in %s",
-            run_on_indexers,
             marker_path,
         )
 

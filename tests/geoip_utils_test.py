@@ -812,6 +812,22 @@ def test_sync_replication_marker_concurrent_calls_keep_their_own_scratch_file() 
     ]
 
 
+def test_sync_replication_marker_survives_a_raising_success_log() -> None:
+    """Never raises covers the success log too: two callers (the settings
+    handler after save() has committed, the geoip command's prepare())
+    depend on that, and a raise from the logger after the marker was
+    written would take them down over a log line."""
+    import geoip_utils  # noqa: PLC0415
+
+    logger = MagicMock()
+    logger.info.side_effect = RuntimeError("logging broken")
+
+    geoip_utils.sync_replication_marker(lambda: logger, run_on_indexers=True)
+
+    assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n1\n"
+    logger.exception.assert_called_once()
+
+
 def test_sync_replication_marker_never_raises(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
