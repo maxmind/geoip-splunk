@@ -71,6 +71,5 @@ def test_no_denylist_stanza() -> None:
     outside Splunk's default allowlist, so none of it can ride the knowledge
     bundle in the first place. The one file the app writes inside the
     allowlist - the lookups/ bundle state marker - is meant to ride the
-    bundle, and its scratch file is a *.tmp, which Splunk's own default
-    denylist already excludes."""
+    bundle."""
     assert not _load().has_section("replicationDenylist")

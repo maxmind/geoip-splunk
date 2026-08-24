@@ -3,8 +3,6 @@
 import logging
 import os
 import re
-import tempfile
-from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -323,7 +321,7 @@ def get_database_directory() -> Path:
 
 
 def sync_replication_marker(
-    logger_factory: Callable[[], logging.Logger],
+    session_key: str,
     *,
     run_on_indexers: bool,
 ) -> None:
@@ -356,11 +354,13 @@ def sync_replication_marker(
     aid, and failing to write it must not take down a settings save or an
     update run.
 
-    The logger arrives as a zero-argument callable, invoked only when
-    there is something to log: the steady-state no-op sits on the geoip
-    command's per-search critical path, and building the configured
-    logger costs a REST read. The callable must not raise - pass an
-    already-built logger (lambda: logger) or a guarded lookup.
+    A plain write, not write-and-rename: the mtime is the only
+    load-bearing property, so a bundle build that snapshots a torn write
+    loses nothing, and the content check above rewrites any mismatch on
+    the next sync anyway. The logger is built lazily, only when there is
+    something to log: the steady-state no-op sits on the geoip command's
+    per-search critical path, and building the configured logger costs a
+    REST read. Through get_logger_or_fallback, which never raises.
     """
     content = f"{RUN_ON_INDEXERS_FIELD}\n{1 if run_on_indexers else 0}\n"
     # Resolved outside the try so the failure log below can name the path;
@@ -374,38 +374,14 @@ def sync_replication_marker(
         except (OSError, UnicodeDecodeError):
             pass  # missing or unreadable: (re)write it
         marker_path.parent.mkdir(parents=True, exist_ok=True)
-        # Write-and-rename so a bundle build cannot pick up a torn write.
-        # mkstemp gives each concurrent writer (a settings save in one
-        # process overlapping an updater run in another, say) its own
-        # exclusively created scratch file, the same way pygeoipupdate
-        # writes the databases, and Splunk's default replication denylist
-        # excludes lookups/*.tmp, so the scratch file never rides the
-        # bundle itself.
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f"{marker_path.name}.",
-            suffix=".tmp",
-            dir=marker_path.parent,
-        )
-        tmp_path = Path(tmp_name)
-        try:
-            with os.fdopen(fd, "w", encoding="ascii") as tmp_file:
-                if hasattr(os, "fchmod"):
-                    # mkstemp creates the file 0600; give the marker the
-                    # mode a plain create would have.
-                    os.fchmod(tmp_file.fileno(), 0o644)
-                tmp_file.write(content)
-            tmp_path.replace(marker_path)
-        finally:
-            # replace() consumed the scratch file on success, so this
-            # only removes it after a failure.
-            tmp_path.unlink(missing_ok=True)
-        logger_factory().info(
+        marker_path.write_text(content, encoding="ascii")
+        get_logger_or_fallback(session_key).info(
             "Recorded run_on_indexers=%s in %s",
             run_on_indexers,
             marker_path,
         )
     except Exception:  # the marker must never take down the caller
-        logger = logger_factory()
+        logger = get_logger_or_fallback(session_key)
         logger.exception(
             "Failed to write the bundle state marker %s; a changed "
             '"Run on indexers" setting may not reach the search peers '

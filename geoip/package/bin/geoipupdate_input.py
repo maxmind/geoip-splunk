@@ -153,7 +153,7 @@ def _sync_replication_marker_from_settings(
             "leaving the bundle state marker alone"
         )
         return
-    sync_replication_marker(lambda: logger, run_on_indexers=run_on_indexers)
+    sync_replication_marker(session_key, run_on_indexers=run_on_indexers)
 
 
 def _get_account_credentials(session_key: str) -> tuple[int, str]:

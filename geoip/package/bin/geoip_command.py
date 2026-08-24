@@ -141,10 +141,7 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
             )
         return False
     enabled = is_truthy(value)
-    sync_replication_marker(
-        lambda: get_logger_or_fallback(session_key),
-        run_on_indexers=enabled,
-    )
+    sync_replication_marker(session_key, run_on_indexers=enabled)
     return enabled
 
 

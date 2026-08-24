@@ -248,10 +248,10 @@ def test_handle_edit_disable_saves_before_writing_distsearch() -> None:
 
 def test_handle_edit_survives_a_broken_logger() -> None:
     """get_logger reads the log level over REST, so it can raise; that
-    must not fail the save, and the fallback logger must reach both
-    _apply_mmdb_replication and the marker sync. Broken at the
-    geoip_utils level so the real get_logger_or_fallback absorbs the
-    raise."""
+    must not fail the save, and the fallback logger must reach
+    _apply_mmdb_replication (the marker sync resolves its own from the
+    session key). Broken at the geoip_utils level so the real
+    get_logger_or_fallback absorbs the raise."""
     handler = _make_handler(DISTRIBUTION_STANZA, {RUN_ON_INDEXERS_FIELD: ["1"]})
     with (
         patch.object(
@@ -268,9 +268,7 @@ def test_handle_edit_survives_a_broken_logger() -> None:
     apply_mock.assert_called_once_with(
         "test_session_key", fallback, run_on_indexers=True
     )
-    marker_mock.assert_called_once()
-    assert marker_mock.call_args.args[0]() is fallback
-    assert marker_mock.call_args.kwargs == {"run_on_indexers": True}
+    marker_mock.assert_called_once_with("test_session_key", run_on_indexers=True)
 
 
 def test_handle_edit_account_does_not_touch_distsearch() -> None:

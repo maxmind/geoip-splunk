@@ -183,7 +183,7 @@ class GeoipSettingsHandler(AdminExternalHandler):
         else:
             save(self, confInfo)
             _apply_mmdb_replication(self.getSessionKey(), logger, run_on_indexers=False)
-        sync_replication_marker(lambda: logger, run_on_indexers=run_on_indexers)
+        sync_replication_marker(self.getSessionKey(), run_on_indexers=run_on_indexers)
 
 
 def _parse_run_on_indexers(data: dict[str, Any]) -> bool:
