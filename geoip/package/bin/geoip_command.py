@@ -284,9 +284,8 @@ def _get_reader(
             # After an upgrade the database may still be in the
             # pre-1.2.0 location. Never on an indexer: the app runs from
             # the knowledge bundle there and has no legacy directory.
-            # Through the guarded helper: a raise from get_logger here
-            # would kill the search with an opaque traceback instead of
-            # the tailored missing-database message below.
+            # The guarded helper, so a broken logger cannot replace the
+            # tailored missing-database message below with a traceback.
             migrate_legacy_databases(get_logger_or_fallback(session_key))
         if not db_path.exists():
             if on_indexer:

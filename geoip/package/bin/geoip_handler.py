@@ -41,9 +41,8 @@ def trigger_background_update(session_key: str) -> None:
     Concurrent updates are safe because the pygeoipupdate library
     acquires a file lock before writing databases.
 
-    Through the guarded helper: this runs after handleEdit/handleCreate
-    committed the save, so a raise from get_logger would surface as an
-    opaque 500 for a save that succeeded - and skip the download thread.
+    The guarded helper: a raise after the committed save would surface
+    as an opaque 500 and skip the download thread.
     """
     get_logger_or_fallback(session_key).info("Triggering background database update")
     # daemon=False so the process stays alive until the download finishes.

@@ -90,23 +90,16 @@ def run_database_update(session_key: str) -> None:
         session_key: Splunk session key for REST API calls.
 
     """
-    # Through the guarded helper: get_logger reads the log level over
-    # REST, so on a member where conf reads are broken it raises - and
-    # the migration below, which needs no REST, must still run there.
-    # (The marker sync cannot help on such a member - its own settings
-    # read fails the same way and it bails - but the run must still reach
-    # it, and the configuration checks after it, so each can log what it
-    # skipped.)
+    # The guarded helper: the steps below must still run on a member
+    # where conf reads (get_logger's included) are broken.
     logger = get_logger_or_fallback(session_key)
 
     # Before the configuration checks: databases left in the pre-1.2.0
     # location should move even while the input is unconfigured.
     migrate_legacy_databases(logger)
 
-    # Also before the configuration checks: the bundle state marker must
-    # track the "Run on indexers" setting even while the updater is
-    # unconfigured, and this run may be the first one after the restart
-    # that loaded the setting's replication rules.
+    # Also before the configuration checks: the marker must track the
+    # setting even while the updater is unconfigured.
     _sync_replication_marker_from_settings(session_key, logger)
 
     try:
@@ -139,11 +132,10 @@ def _sync_replication_marker_from_settings(
 ) -> None:
     """Sync the bundle state marker to the "Run on indexers" setting.
 
-    The settings handler writes the marker on save, but only on the search
-    head cluster member that served the save; this covers the others - in
-    particular a captain that did not serve it, whose files the knowledge
-    bundle follows. Never raises: like the migration, a failure here must
-    not take down the update run.
+    The settings handler writes the marker only on the member that
+    served the save; this covers the rest - notably a captain, whose
+    files the knowledge bundle follows. Never raises: a failure must not
+    take down the update run.
     """
     try:
         run_on_indexers = is_truthy(get_run_on_indexers_setting(session_key))
