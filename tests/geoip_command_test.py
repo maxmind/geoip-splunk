@@ -442,6 +442,30 @@ def test_database_not_found_migration_survives_a_broken_logger() -> None:
         list(geoip_command.stream(command, iter([{"ip": "1.2.3.4"}])))
 
 
+def test_stream_event_loop_survives_a_broken_logger() -> None:
+    """The pass-through paths (missing field, invalid IP, IP not found)
+    each log at debug level; a raise from get_logger there would abort
+    the search mid-results instead of yielding the events unenriched.
+    Broken at the geoip_utils level so the real get_logger_or_fallback
+    absorbs the raise."""
+    command = MockCommand()
+    events = [
+        {"other": "no ip field"},
+        {"ip": "not-an-ip"},
+        {"ip": "10.0.0.1"},  # not in GeoIP2-Country-Test
+    ]
+
+    with patch.object(
+        geoip_utils,
+        "get_logger",
+        side_effect=RuntimeError("splunkd unreachable"),
+    ):
+        results = list(geoip_command.stream(command, iter(events)))
+
+    assert len(results) == len(events)
+    assert all("country.iso_code" not in event for event in results)
+
+
 def test_database_not_found_on_indexer_does_not_migrate() -> None:
     """No legacy directory exists on an indexer, where the app runs from
     the knowledge bundle; the command must not try to migrate there."""

@@ -13,7 +13,6 @@ import maxminddb
 from geoip_utils import (
     fill_missing_event_fields,
     get_database_directory,
-    get_logger,
     get_logger_or_fallback,
     get_run_on_indexers_setting,
     is_truthy,
@@ -209,7 +208,9 @@ def stream(
         ip_address = event.get(field)
 
         if not ip_address:
-            get_logger(session_key).debug("Event missing or empty field: %s", field)
+            get_logger_or_fallback(session_key).debug(
+                "Event missing or empty field: %s", field
+            )
             output_events.append(event)
             continue
 
@@ -220,11 +221,13 @@ def stream(
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                get_logger(session_key).debug("Invalid IP address: %s", ip_address)
+                get_logger_or_fallback(session_key).debug(
+                    "Invalid IP address: %s", ip_address
+                )
                 continue
 
             if not record:
-                get_logger(session_key).debug(
+                get_logger_or_fallback(session_key).debug(
                     "No record found for IP %s in database %s",
                     ip_address,
                     reader.metadata().database_type,
@@ -232,7 +235,7 @@ def stream(
                 continue
 
             if not isinstance(record, dict):
-                get_logger(session_key).debug(
+                get_logger_or_fallback(session_key).debug(
                     "Record for IP %s is not a dict: %s",
                     ip_address,
                     type(record).__name__,
