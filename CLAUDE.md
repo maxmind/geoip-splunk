@@ -722,18 +722,28 @@ Logging uses solnlib to write to
 `$SPLUNK_HOME/var/log/splunk/{logger_name}.log`. The log level is configured via
 the Logging tab in the app's UI.
 
-The shared `get_logger(session_key)` function in `geoip_utils.py` is used by all
-modules (search command, modular input, REST handlers). It's decorated with
-`@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level
-setting.
+`geoip_utils.py` provides three logger helpers:
 
-`get_fallback_logger()` (used when there is no session key or `get_logger`'s
-REST read fails) is a different logger object from solnlib's, which is named
-after its log file path: fallback records go to stderr only - search.log for
-search processes, splunkd.log otherwise - and never to `geoip.log`. It carries
-its own stderr handler with `propagate = False`, so records print exactly once
-whether the process gave the root logger a NullHandler (the app's REST handlers)
-or a stderr handler (splunklib's searchcommands import).
+- `get_logger_or_fallback(session_key)` is what callers should use: the
+  configured logger, degrading to the fallback instead of raising when the log
+  level read fails. It is the one home of that guard, so no caller re-implements
+  it. It carries its own `@lru_cache(maxsize=1)` because `get_logger`'s cache
+  does not cover the raising case (`lru_cache` does not cache exceptions) -
+  without it, a broken node would re-attempt the REST read and log another
+  traceback on every call.
+- `get_logger(session_key)` builds the configured logger and raises when the
+  conf read fails; only for a caller that wants the failure. Decorated with
+  `@lru_cache(maxsize=1)` to avoid repeated REST API calls to read the log level
+  setting.
+- `get_fallback_logger()` is for when there is no session key at all.
+
+`get_fallback_logger()` (also used when `get_logger`'s REST read fails) is a
+different logger object from solnlib's, which is named after its log file path:
+fallback records go to stderr only - search.log for search processes,
+splunkd.log otherwise - and never to `geoip.log`. It carries its own stderr
+handler with `propagate = False`, so records print exactly once whether the
+process gave the root logger a NullHandler (the app's REST handlers) or a stderr
+handler (splunklib's searchcommands import).
 
 ### Key Points
 
