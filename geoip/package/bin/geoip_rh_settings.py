@@ -153,27 +153,16 @@ class GeoipSettingsHandler(AdminExternalHandler):
     ) -> None:
         """Save the distribution stanza and the distsearch override.
 
-        The two writes are ordered so that a failure between them cannot
-        leave the setting enabled while the allowlist still matches
-        nothing - in that state every geoip search distributes, fails on
-        the indexers, and a restart does not recover. Enabling writes
-        distsearch first, so a failure leaves the toggle off; disabling
-        saves the setting first, so a failure leaves only extra
-        replication, which does not break searches.
+        Ordered so a failure between the two writes cannot leave the
+        setting enabled while the allowlist still matches nothing - the
+        state every geoip search fails in, and a restart does not
+        recover. Enabling writes distsearch first, so a failure leaves
+        the toggle off; disabling saves the setting first, so a failure
+        leaves only extra replication, which breaks nothing.
 
-        The bundle state marker comes last, once both writes committed the
-        new state, so a failed save cannot record a state that was rolled
-        back. Written here as well as by the updater input because this
-        member's marker gets its fresh mtime immediately - before the
-        restart the toggle requires - and that mtime is what guarantees
-        the post-restart bundle a checksum no search peer has seen (see
+        The bundle state marker comes last, once both writes committed,
+        so a failed save cannot record a rolled-back state (see
         sync_replication_marker).
-
-        The logger is resolved up front, through get_logger_or_fallback
-        (get_logger reads the log level over REST and can itself raise):
-        a raise from a later logging call would escape as an opaque 500 -
-        after save() has committed, on the disable path - instead of this
-        module's RestError with the real failure.
         """
         logger = get_logger_or_fallback(self.getSessionKey())
         run_on_indexers = _parse_run_on_indexers(self.callerArgs.data)
