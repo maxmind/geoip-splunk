@@ -307,9 +307,9 @@ indexer appears to already have - without switching the indexer to it. Turning
 on an otherwise quiet cluster the rebuilt bundle after a toggle and restart can
 match a stale bundle the indexer still holds, and the change would then never
 take effect. To prevent that, the app records the setting in a small state file
-(`lookups/geoip_replication_state.csv`, maintained on save and by the hourly
-update input), which gives the bundle a fresh checksum every time the setting
-changes.
+(`lookups/geoip_replication_state.csv`, maintained on save, by the hourly update
+input, and by `geoip` searches on the search head), which gives the bundle a
+fresh checksum every time the setting changes.
 
 ### Bundle Size Limits
 
