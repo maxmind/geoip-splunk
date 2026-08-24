@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING
 
-from geoip_utils import get_logger
+from geoip_utils import get_logger_or_fallback
 from splunktaucclib.rest_handler.admin_external import AdminExternalHandler
 
 if TYPE_CHECKING:
@@ -40,8 +40,11 @@ def trigger_background_update(session_key: str) -> None:
 
     Concurrent updates are safe because the pygeoipupdate library
     acquires a file lock before writing databases.
+
+    The guarded helper: a raise after the committed save would surface
+    as an opaque 500 and skip the download thread.
     """
-    get_logger(session_key).info("Triggering background database update")
+    get_logger_or_fallback(session_key).info("Triggering background database update")
     # daemon=False so the process stays alive until the download finishes.
     # Splunk's REST handler process exits after admin_external.handle()
     # returns; a daemon thread would be killed immediately. With a non-daemon
@@ -62,4 +65,6 @@ def _run_update_background(session_key: str) -> None:
 
         run_database_update(session_key)
     except Exception:
-        get_logger(session_key).exception("Background database update failed")
+        get_logger_or_fallback(session_key).exception(
+            "Background database update failed"
+        )

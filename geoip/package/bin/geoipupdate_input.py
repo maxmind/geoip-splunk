@@ -21,8 +21,11 @@ from geoip_utils import (
     get_configured_database_names,
     get_database_directory,
     get_fallback_logger,
-    get_logger,
+    get_logger_or_fallback,
+    get_run_on_indexers_setting,
+    is_truthy,
     migrate_legacy_databases,
+    sync_replication_marker,
     validate_account_credentials,
 )
 from pygeoipupdate import Config, Updater
@@ -87,11 +90,17 @@ def run_database_update(session_key: str) -> None:
         session_key: Splunk session key for REST API calls.
 
     """
-    logger = get_logger(session_key)
+    # The guarded helper: the steps below must still run on a member
+    # where conf reads (get_logger's included) are broken.
+    logger = get_logger_or_fallback(session_key)
 
     # Before the configuration checks: databases left in the pre-1.2.0
     # location should move even while the input is unconfigured.
     migrate_legacy_databases(logger)
+
+    # Also before the configuration checks: the marker must track the
+    # setting even while the updater is unconfigured.
+    _sync_replication_marker_from_settings(session_key, logger)
 
     try:
         account_id, license_key = _get_account_credentials(session_key)
@@ -116,6 +125,27 @@ def run_database_update(session_key: str) -> None:
         logger.exception("Database update failed")
     except Exception:
         logger.exception("Unexpected error during database update")
+
+
+def _sync_replication_marker_from_settings(
+    session_key: str, logger: logging.Logger
+) -> None:
+    """Sync the bundle state marker to the "Run on indexers" setting.
+
+    The settings handler writes the marker only on the member that
+    served the save; this covers the rest - notably a captain, whose
+    files the knowledge bundle follows. Never raises: a failure must not
+    take down the update run.
+    """
+    try:
+        run_on_indexers = is_truthy(get_run_on_indexers_setting(session_key))
+    except Exception:
+        logger.exception(
+            "Could not read the run_on_indexers setting; "
+            "leaving the bundle state marker alone"
+        )
+        return
+    sync_replication_marker(session_key, run_on_indexers=run_on_indexers)
 
 
 def _get_account_credentials(session_key: str) -> tuple[int, str]:

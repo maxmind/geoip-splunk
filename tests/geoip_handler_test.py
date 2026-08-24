@@ -23,6 +23,7 @@ sys.modules["splunktaucclib"] = mock_splunktaucclib
 sys.modules["splunktaucclib.rest_handler"] = mock_rest_handler
 sys.modules["splunktaucclib.rest_handler.admin_external"] = mock_admin_external
 
+import geoip_utils  # noqa: E402  # type: ignore[import-not-found]
 from geoip_handler import (  # noqa: E402  # type: ignore[import-not-found]
     _run_update_background,
     trigger_background_update,
@@ -51,3 +52,21 @@ def test_trigger_background_update_spawns_thread() -> None:
             daemon=False,
         )
         mock_thread.start.assert_called_once()
+
+
+def test_trigger_background_update_survives_a_broken_logger() -> None:
+    """get_logger reads the log level over REST, so it can raise - and by
+    the time this runs the save already committed, so a raise would
+    surface as an opaque 500 and skip the download thread. Broken at the
+    geoip_utils level so the real get_logger_or_fallback absorbs it."""
+    with (
+        patch.object(
+            geoip_utils,
+            "get_logger",
+            side_effect=RuntimeError("splunkd unreachable"),
+        ),
+        patch("geoip_handler.threading.Thread") as mock_thread_class,
+    ):
+        trigger_background_update("test_session_key")
+
+    mock_thread_class.return_value.start.assert_called_once()

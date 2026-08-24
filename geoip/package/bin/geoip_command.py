@@ -13,12 +13,12 @@ import maxminddb
 from geoip_utils import (
     fill_missing_event_fields,
     get_database_directory,
-    get_fallback_logger,
-    get_logger,
+    get_logger_or_fallback,
     get_run_on_indexers_setting,
     is_truthy,
     is_valid_database_name,
     migrate_legacy_databases,
+    sync_replication_marker,
 )
 
 
@@ -91,35 +91,28 @@ def prepare(command: PreparableCommand) -> None:
 def _indexer_execution_enabled(command: PreparableCommand) -> bool:
     """Read the "Run on indexers" setting from geoip_settings.conf.
 
-    The read goes through solnlib pinned to the geoip app's namespace
-    (get_run_on_indexers_setting) rather than through command.service,
-    which the SDK namespaces to the app the search was dispatched from -
-    a read from there resolves the conf only via the app's
-    export = system metadata.
+    Reads through solnlib pinned to the geoip app's namespace, not
+    command.service, which is namespaced to the dispatching app.
 
-    Any failure means search-head-only execution: a broken settings read
-    must never take the search down, and running on the search head is
-    always safe since the databases live there. Reading the session key is
-    inside the try for the same reason - the promise is worth nothing if an
-    unexpected searchinfo kills the search on the way in. Logging the
-    failure must not take it down either: get_logger reads its log level
-    from this same conf over REST, so whatever broke the settings read
-    (splunkd unreachable, expired session key) may make it raise too.
+    Any failure (reading the session key included) means search-head-only
+    execution: a broken settings read must never take the search down,
+    and the search head always has the databases. The fallback is also
+    reported to the search, so a user who enabled the setting can see it
+    did not take effect.
 
-    Someone who deliberately enabled "Run on indexers" gets correct
-    results from the wrong topology here, so the reverted setting is also
-    reported to the search, where it shows up in Splunk Web and the job
-    inspector.
+    A successful read also syncs the bundle state marker (see
+    sync_replication_marker): a search head cluster captain may have no
+    other writer - only one member runs the updater input on Splunk Cloud
+    Victoria - and the knowledge bundle follows the captain's files.
+    Never synced on a failed read: the state is unknown, and a wrong
+    write could rebuild every peer's bundle for nothing.
     """
     session_key = ""
     try:
         session_key = command.metadata.searchinfo.session_key
         value = get_run_on_indexers_setting(session_key)
     except Exception:  # any failure means don't distribute
-        try:
-            logger = get_logger(session_key)
-        except Exception:  # noqa: BLE001 - see the docstring
-            logger = get_fallback_logger()
+        logger = get_logger_or_fallback(session_key)
         logger.exception(
             "Failed to read the run_on_indexers setting; "
             "running on the search head only"
@@ -130,7 +123,9 @@ def _indexer_execution_enabled(command: PreparableCommand) -> bool:
                 "the geoip command ran on the search head only."
             )
         return False
-    return is_truthy(value)
+    enabled = is_truthy(value)
+    sync_replication_marker(session_key, run_on_indexers=enabled)
+    return enabled
 
 
 def stream(
@@ -193,7 +188,9 @@ def stream(
         ip_address = event.get(field)
 
         if not ip_address:
-            get_logger(session_key).debug("Event missing or empty field: %s", field)
+            get_logger_or_fallback(session_key).debug(
+                "Event missing or empty field: %s", field
+            )
             output_events.append(event)
             continue
 
@@ -204,11 +201,13 @@ def stream(
             try:
                 record, prefix_len = reader.get_with_prefix_len(ip_address)
             except ValueError:
-                get_logger(session_key).debug("Invalid IP address: %s", ip_address)
+                get_logger_or_fallback(session_key).debug(
+                    "Invalid IP address: %s", ip_address
+                )
                 continue
 
             if not record:
-                get_logger(session_key).debug(
+                get_logger_or_fallback(session_key).debug(
                     "No record found for IP %s in database %s",
                     ip_address,
                     reader.metadata().database_type,
@@ -216,7 +215,7 @@ def stream(
                 continue
 
             if not isinstance(record, dict):
-                get_logger(session_key).debug(
+                get_logger_or_fallback(session_key).debug(
                     "Record for IP %s is not a dict: %s",
                     ip_address,
                     type(record).__name__,
@@ -285,18 +284,21 @@ def _get_reader(
             # After an upgrade the database may still be in the
             # pre-1.2.0 location. Never on an indexer: the app runs from
             # the knowledge bundle there and has no legacy directory.
-            migrate_legacy_databases(get_logger(session_key))
+            # The guarded helper, so a broken logger cannot replace the
+            # tailored missing-database message below with a traceback.
+            migrate_legacy_databases(get_logger_or_fallback(session_key))
         if not db_path.exists():
             if on_indexer:
                 msg = (
                     f"Database not found on this indexer: {name}.mmdb. "
                     "Check the database name (case-sensitive) against the "
                     "GeoIP app configuration page. If it is correct, the "
-                    "database is missing from the knowledge bundle: retry "
-                    "shortly if it was added recently, restart the search "
-                    'head if "Run on indexers" was enabled since its last '
-                    "restart, and otherwise see the app README for bundle "
-                    "size limits and troubleshooting."
+                    "database is missing from the knowledge bundle: restart "
+                    'the search head if "Run on indexers" was enabled since '
+                    "its last restart, allow a couple of minutes after a "
+                    "restart or a new download for a search to push the "
+                    "updated bundle, and see the app README for "
+                    "bundle size limits and troubleshooting."
                 )
             else:
                 msg = (

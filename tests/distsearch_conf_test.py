@@ -69,5 +69,7 @@ def test_no_denylist_stanza() -> None:
     """Nothing needs denying: the app's databases/ directory (the databases,
     the updater's in-progress *.temporary downloads, its lock file) is
     outside Splunk's default allowlist, so none of it can ride the knowledge
-    bundle in the first place."""
+    bundle in the first place. The one file the app writes inside the
+    allowlist - the lookups/ bundle state marker - is meant to ride the
+    bundle."""
     assert not _load().has_section("replicationDenylist")

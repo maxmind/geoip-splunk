@@ -650,3 +650,211 @@ def test_validate_account_credentials_rejects_a_non_numeric_id(
 
     with pytest.raises(ValueError, match="must be a number"):
         geoip_utils.validate_account_credentials(account_id, "abcdef0123456789")
+
+
+def test_get_replication_marker_path_with_env_override(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GEOIP_LOOKUPS_DIR", str(tmp_path))
+
+    import geoip_utils  # noqa: PLC0415
+
+    result = geoip_utils.get_replication_marker_path()
+    assert result == tmp_path / "geoip_replication_state.csv"
+
+
+def test_get_replication_marker_path_default(monkeypatch: MonkeyPatch) -> None:
+    """The default is the app's lookups/ directory: it is in Splunk's
+    default bundle replication allowlist, which is what lets a marker
+    change alter the bundle checksum."""
+    monkeypatch.delenv("GEOIP_LOOKUPS_DIR", raising=False)
+
+    import geoip_utils  # noqa: PLC0415
+
+    result = geoip_utils.get_replication_marker_path()
+    assert result == (lib_dir.parent / "lookups").resolve() / (
+        "geoip_replication_state.csv"
+    )
+
+
+def _marker_path() -> Path:
+    import geoip_utils  # noqa: PLC0415
+
+    return geoip_utils.get_replication_marker_path()
+
+
+@pytest.mark.parametrize(
+    ("run_on_indexers", "expected"),
+    [
+        (True, "run_on_indexers\n1\n"),
+        (False, "run_on_indexers\n0\n"),
+    ],
+)
+def test_sync_replication_marker_writes_the_state(
+    run_on_indexers: bool,  # noqa: FBT001
+    expected: str,
+) -> None:
+    """Creates the lookups directory and the marker on first sync. The
+    content is a valid one-column CSV, since the file lives in lookups/."""
+    import geoip_utils  # noqa: PLC0415
+
+    geoip_utils.sync_replication_marker(
+        "test_session_key", run_on_indexers=run_on_indexers
+    )
+
+    assert _marker_path().read_text(encoding="ascii") == expected
+
+
+def test_sync_replication_marker_is_a_noop_when_the_state_matches() -> None:
+    """An unchanged marker must keep its mtime: any rewrite gives the next
+    knowledge bundle a new checksum, and the input syncs hourly, so a
+    rewrite here would rebuild the bundle on every peer every hour."""
+    import geoip_utils  # noqa: PLC0415
+
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+    before = _marker_path().stat()
+
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    after = _marker_path().stat()
+    assert (after.st_mtime_ns, after.st_ino) == (before.st_mtime_ns, before.st_ino)
+
+
+def test_sync_replication_marker_steady_state_builds_no_logger() -> None:
+    """The geoip command syncs on every search head search, and the
+    logger lookup costs a REST read, so the matching-marker no-op must
+    not build a logger at all."""
+    import geoip_utils  # noqa: PLC0415
+
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    with patch.object(geoip_utils, "get_logger_or_fallback") as lookup_mock:
+        geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    lookup_mock.assert_not_called()
+
+
+def test_sync_replication_marker_rewrites_on_a_state_change() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=False)
+
+    assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n0\n"
+
+
+def test_sync_replication_marker_rewrites_a_corrupt_marker() -> None:
+    """A hand-edited or torn marker must not wedge the sync: unreadable or
+    unexpected content means (re)write, not raise."""
+    import geoip_utils  # noqa: PLC0415
+
+    _marker_path().parent.mkdir(parents=True, exist_ok=True)
+    _marker_path().write_bytes(b"\xff\xfe garbage")
+
+    geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n1\n"
+
+
+def test_sync_replication_marker_survives_a_raising_success_log() -> None:
+    """Never raises covers the success log too: two callers (the settings
+    handler after save() has committed, the geoip command's prepare())
+    depend on that, and a raise from the logger after the marker was
+    written would take them down over a log line."""
+    import geoip_utils  # noqa: PLC0415
+
+    logger = MagicMock()
+    logger.info.side_effect = RuntimeError("logging broken")
+
+    with patch.object(geoip_utils, "get_logger_or_fallback", return_value=logger):
+        geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    assert _marker_path().read_text(encoding="ascii") == "run_on_indexers\n1\n"
+    logger.exception.assert_called_once()
+
+
+def test_sync_replication_marker_never_raises(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A failed marker write must not take down a settings save or an
+    update run. Pointing the lookups directory inside a file makes both
+    the read and the mkdir fail."""
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a directory")
+    monkeypatch.setenv("GEOIP_LOOKUPS_DIR", str(blocker / "lookups"))
+    logger = MagicMock()
+
+    import geoip_utils  # noqa: PLC0415
+
+    with patch.object(geoip_utils, "get_logger_or_fallback", return_value=logger):
+        geoip_utils.sync_replication_marker("test_session_key", run_on_indexers=True)
+
+    logger.exception.assert_called_once()
+
+
+def test_get_fallback_logger_writes_records_exactly_once() -> None:
+    """The fallback logger exists for nodes where conf reads are broken.
+    It needs a handler of its own (the REST handler processes give the
+    root logger only a NullHandler, so propagated records vanish there)
+    and must not also propagate (search-command processes give the root
+    logger a stderr handler, so propagated records print twice there).
+    It must also not stack a new handler per call: several modules call
+    it repeatedly."""
+    import geoip_utils  # noqa: PLC0415
+
+    logger = geoip_utils.get_fallback_logger()
+    # A copy, since a repeated call must be compared against a snapshot,
+    # not against the same live list (pytest's caplog can add handlers of
+    # its own, so an exact count would be fragile).
+    handlers_after_first = list(logger.handlers)
+    geoip_utils.get_fallback_logger()
+
+    assert handlers_after_first
+    assert logger.handlers == handlers_after_first
+    assert logger.propagate is False
+
+
+def test_get_logger_or_fallback_returns_the_configured_logger() -> None:
+    import geoip_utils  # noqa: PLC0415
+
+    configured = MagicMock()
+    with patch.object(geoip_utils, "get_logger", return_value=configured):
+        assert geoip_utils.get_logger_or_fallback("test_session_key") is configured
+
+
+def test_get_logger_or_fallback_never_raises() -> None:
+    """get_logger reads its log level over REST, so on a node where conf
+    reads fail it raises; every never-fail path (search prepare, settings
+    saves, update runs, diagnostics) leans on this guard instead of
+    re-implementing it."""
+    import geoip_utils  # noqa: PLC0415
+
+    with patch.object(
+        geoip_utils,
+        "get_logger",
+        side_effect=RuntimeError("splunkd unreachable"),
+    ):
+        logger = geoip_utils.get_logger_or_fallback("test_session_key")
+
+    assert logger is geoip_utils.get_fallback_logger()
+
+
+def test_get_logger_or_fallback_attempts_a_failing_lookup_only_once() -> None:
+    """get_logger's own lru_cache does not cache exceptions, so without a
+    cache here every call on a broken node re-attempts the REST read and
+    logs another traceback - once per event in the geoip command's
+    stream(), so a chunk of unmatched IPs would produce N of each."""
+    import geoip_utils  # noqa: PLC0415
+
+    with patch.object(
+        geoip_utils,
+        "get_logger",
+        side_effect=RuntimeError("splunkd unreachable"),
+    ) as get_logger_mock:
+        first = geoip_utils.get_logger_or_fallback("test_session_key")
+        second = geoip_utils.get_logger_or_fallback("test_session_key")
+
+    get_logger_mock.assert_called_once()
+    assert second is first

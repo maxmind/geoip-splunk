@@ -33,8 +33,9 @@ from geoip_utils import (
     REPLICATION_ALLOWLIST_STANZA,
     RUN_ON_INDEXERS_FIELD,
     SETTINGS_FIELD_SPECS,
-    get_logger,
+    get_logger_or_fallback,
     is_truthy,
+    sync_replication_marker,
 )
 from solnlib import conf_manager
 from splunktaucclib.rest_handler import admin_external
@@ -152,21 +153,26 @@ class GeoipSettingsHandler(AdminExternalHandler):
     ) -> None:
         """Save the distribution stanza and the distsearch override.
 
-        The two writes are ordered so that a failure between them cannot
-        leave the setting enabled while the allowlist still matches
-        nothing - in that state every geoip search distributes, fails on
-        the indexers, and a restart does not recover. Enabling writes
-        distsearch first, so a failure leaves the toggle off; disabling
-        saves the setting first, so a failure leaves only extra
-        replication, which does not break searches.
+        Ordered so a failure between the two writes cannot leave the
+        setting enabled while the allowlist still matches nothing - the
+        state every geoip search fails in, and a restart does not
+        recover. Enabling writes distsearch first, so a failure leaves
+        the toggle off; disabling saves the setting first, so a failure
+        leaves only extra replication, which breaks nothing.
+
+        The bundle state marker comes last, once both writes committed,
+        so a failed save cannot record a rolled-back state (see
+        sync_replication_marker).
         """
+        logger = get_logger_or_fallback(self.getSessionKey())
         run_on_indexers = _parse_run_on_indexers(self.callerArgs.data)
         if run_on_indexers:
-            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=True)
+            _apply_mmdb_replication(self.getSessionKey(), logger, run_on_indexers=True)
             save(self, confInfo)
         else:
             save(self, confInfo)
-            _apply_mmdb_replication(self.getSessionKey(), run_on_indexers=False)
+            _apply_mmdb_replication(self.getSessionKey(), logger, run_on_indexers=False)
+        sync_replication_marker(self.getSessionKey(), run_on_indexers=run_on_indexers)
 
 
 def _parse_run_on_indexers(data: dict[str, Any]) -> bool:
@@ -179,7 +185,12 @@ def _parse_run_on_indexers(data: dict[str, Any]) -> bool:
     return is_truthy(values[0])
 
 
-def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
+def _apply_mmdb_replication(
+    session_key: str,
+    logger: logging.Logger,
+    *,
+    run_on_indexers: bool,
+) -> None:
     """Point the distsearch.conf allowlist override at the toggle's state.
 
     The databases live in the app's databases/ directory, which is not in
@@ -190,6 +201,9 @@ def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
     indexers" overrides the key in local/distsearch.conf with the real
     pattern. Conf keys cannot be deleted through the REST API, so the key
     is always written with one of the two values.
+
+    The logger comes from the caller so logging a failure cannot raise
+    itself and mask the RestError (see _save_distribution).
     """
     pattern = MMDB_ALLOW_PATTERN if run_on_indexers else MMDB_ALLOW_NOTHING_PATTERN
     try:
@@ -199,9 +213,7 @@ def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
         # default/distsearch.conf is what makes this resolve at all.
         conf.update(REPLICATION_ALLOWLIST_STANZA, {MMDB_ALLOWLIST_KEY: pattern})
     except Exception as e:
-        get_logger(session_key).exception(
-            "Failed to update the distsearch.conf replication allowlist"
-        )
+        logger.exception("Failed to update the distsearch.conf replication allowlist")
         if run_on_indexers:
             msg = (
                 "Updating distsearch.conf failed, so the setting was not "
@@ -215,7 +227,7 @@ def _apply_mmdb_replication(session_key: str, *, run_on_indexers: bool) -> None:
                 f"again to retry. Error: {e}"
             )
         raise RestError(500, msg) from e
-    get_logger(session_key).info(
+    logger.info(
         "Set distsearch.conf [replicationAllowlist] %s = %s (run_on_indexers=%s)",
         MMDB_ALLOWLIST_KEY,
         pattern,

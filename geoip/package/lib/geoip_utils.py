@@ -49,6 +49,14 @@ MMDB_ALLOW_PATTERN = "apps/geoip/databases/*.mmdb"
 # the bundle (indexer execution off).
 MMDB_ALLOW_NOTHING_PATTERN = "apps/geoip/databases/allow-nothing-placeholder"
 
+# The knowledge bundle state marker (see sync_replication_marker). Lives in
+# lookups/ because that is in Splunk's default bundle allowlist, so a marker
+# change always alters the bundle checksum. lookups/ is also in search head
+# cluster replication summaries - the reason the databases live elsewhere -
+# but that is harmless for a few-byte file whose content every member
+# derives from the same replicated setting.
+REPLICATION_MARKER_FILENAME = "geoip_replication_state.csv"
+
 # Conf coordinates of the "Run on indexers" toggle in geoip_settings.conf:
 # the stanza (also the settings tab's REST id) and the field within it.
 # Shared by the settings handler, which writes the stanza, and the search
@@ -307,6 +315,77 @@ def get_database_directory() -> Path:
     return Path(__file__).resolve().parent.parent / "databases"
 
 
+def sync_replication_marker(
+    session_key: str,
+    *,
+    run_on_indexers: bool,
+) -> None:
+    """Record the "Run on indexers" state in the bundle state marker.
+
+    Splunk skips pushing a knowledge bundle whose checksum matches one a
+    search peer already holds - without switching the peer to it
+    (verified on a live cluster). Toggling "Run on indexers" flips the
+    bundle between two recurring states, so on a quiet cluster the
+    rebuilt bundle after a toggle-plus-restart can match a stale one and
+    the toggle silently never takes effect on the peers. Rewriting an
+    always-replicated file on every state change breaks the recurrence:
+    the fresh mtime gives the next bundle a new checksum. The mtime is
+    the entire mechanism (the checksum covers file metadata); the
+    recorded value just makes the sync idempotent and the state
+    inspectable.
+
+    Synced on settings save, each updater run, and geoip searches, so
+    every cluster member converges - the captain in particular, whose
+    files the bundle follows. No-op when the marker already matches, so
+    steady state never rebuilds the bundle. Never raises: a failed write
+    must not take down the caller.
+
+    A plain write, not write-and-rename: only the mtime is load-bearing,
+    and the content check rewrites any mismatch on the next sync. The
+    logger is built lazily - the no-op sits on the per-search path -
+    and through get_logger_or_fallback, which never raises.
+    """
+    content = f"{RUN_ON_INDEXERS_FIELD}\n{1 if run_on_indexers else 0}\n"
+    # Outside the try so the failure log can name the path; pure
+    # computation, so the never-raises promise is safe.
+    marker_path = get_replication_marker_path()
+    try:
+        try:
+            if marker_path.read_text(encoding="ascii") == content:
+                return
+        except (OSError, UnicodeDecodeError):
+            pass  # missing or unreadable: (re)write it
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+        marker_path.write_text(content, encoding="ascii")
+        get_logger_or_fallback(session_key).info(
+            "Recorded run_on_indexers=%s in %s",
+            run_on_indexers,
+            marker_path,
+        )
+    except Exception:  # the marker must never take down the caller
+        logger = get_logger_or_fallback(session_key)
+        logger.exception(
+            "Failed to write the bundle state marker %s; a changed "
+            '"Run on indexers" setting may not reach the search peers '
+            "until some other replicated app file changes",
+            marker_path,
+        )
+
+
+def get_replication_marker_path() -> Path:
+    """Get the path of the knowledge bundle state marker.
+
+    Resolved relative to this file like get_database_directory; the
+    GEOIP_LOOKUPS_DIR environment variable overrides the directory for
+    tests.
+    """
+    if env_dir := os.environ.get("GEOIP_LOOKUPS_DIR"):
+        return Path(env_dir) / REPLICATION_MARKER_FILENAME
+    return (
+        Path(__file__).resolve().parent.parent / "lookups" / REPLICATION_MARKER_FILENAME
+    )
+
+
 def get_run_on_indexers_setting(session_key: str) -> object | None:
     """Read the raw "Run on indexers" value from geoip_settings.conf.
 
@@ -444,14 +523,57 @@ def validate_account_credentials(
     return int(account_id), license_key
 
 
-def get_fallback_logger() -> logging.Logger:
-    """Get a basic logger for use when no session key is available.
+@lru_cache(maxsize=1)
+def get_logger_or_fallback(session_key: str) -> logging.Logger:
+    """Get the app logger, or the basic fallback instead of raising.
 
-    The log level is hardcoded to INFO since without a session key we
-    cannot read the user's configured level from Splunk's REST API.
+    get_logger reads its log level over REST, so on a node where conf
+    reads fail it raises too; the never-fail paths need a logger
+    regardless. The one home of that guard, so no caller re-implements
+    it. The failed lookup itself is logged through the fallback, which
+    touches nothing remote.
+
+    Cached because get_logger's cache does not cover the failure case
+    (lru_cache does not cache exceptions): without one, every call on a
+    broken node re-attempts the REST read and logs another traceback -
+    once per event in the geoip command's stream(). One entry, like
+    get_logger: the log level is global.
+    """
+    try:
+        return get_logger(session_key)
+    except Exception:
+        logger = get_fallback_logger()
+        logger.exception("Could not build the configured logger")
+        return logger
+
+
+def get_fallback_logger() -> logging.Logger:
+    """Get a basic logger for use when the configured logger is unavailable.
+
+    Used when there is no session key, when get_logger's conf read fails,
+    and by get_logger itself where solnlib is unavailable (every indexer).
+    INFO is hardcoded: the configured level comes over REST - the broken
+    thing in all three cases.
+
+    Own stderr handler, no propagation, each record printed exactly once:
+    the app's REST handler processes give the root logger only a
+    NullHandler (propagated records would vanish - the reason this
+    handler exists), while splunklib's searchcommands import gives it a
+    stderr handler (they would print twice). splunkd keeps stderr -
+    search.log for search processes, splunkd.log otherwise. A different
+    logger object from solnlib's, which is named after its log file path,
+    so these records never reach geoip.log. The handlers guard keeps
+    repeated calls from stacking handlers.
     """
     logger = logging.getLogger(APP_NAME)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        logger.addHandler(handler)
     return logger
 
 

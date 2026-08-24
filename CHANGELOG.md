@@ -16,6 +16,8 @@
   with the app, Splunk, and Python versions and the app's non-secret settings.
   With `indexers=true` it runs on the indexers and reports the database copies
   their knowledge bundle carries.
+- Fix the "Run on indexers" setting sometimes never taking effect on the
+  indexers, even after the required search head restart.
 
 ## 1.2.0 (2026-07-29)
 
