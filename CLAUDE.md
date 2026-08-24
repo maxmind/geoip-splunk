@@ -473,10 +473,11 @@ What reaches the indexers is controlled by `default/distsearch.conf`:
   in a distributed deployment, geoip searches fail with the missing-database
   error between enabling and the first bundle push after the restart (disabling
   is safe immediately). On a single instance with no search peers, distributing
-  changes nothing and nothing fails. New or updated database files under
-  unchanged rules enter the bundle automatically within a bundle cycle or two -
-  no restart. The help text, README, and the missing-database error all reflect
-  this.
+  changes nothing and nothing fails (deliberately not mentioned in the README,
+  which discusses the toggle only in replication terms). New or updated database
+  files under unchanged rules enter the bundle automatically within a bundle
+  cycle or two - no restart. The help text, README, and the missing-database
+  error all reflect the restart timing.
 - A restart is necessary but NOT sufficient (verified on a live cluster,
   2026-08-20): Splunk identifies a bundle by a checksum over its file metadata,
   and when the rebuilt bundle's checksum matches a bundle a peer already holds
