@@ -453,6 +453,12 @@ def test_generate_reports_no_databases_when_none_are_configured(
 
 
 def test_settings_event_degrades_to_unknown_on_failures() -> None:
+    """The logger lookup is broken too (at the geoip_utils level, so the
+    real get_logger_or_fallback absorbs the raise): whatever broke the
+    settings reads may break get_logger's conf read the same way, and the
+    degradation to unknown must not depend on it."""
+    import geoip_utils  # noqa: PLC0415
+
     command = MockCommand()
 
     with (
@@ -460,9 +466,9 @@ def test_settings_event_degrades_to_unknown_on_failures() -> None:
             geoipdebug_command, "get_configured_database_names", return_value=[]
         ),
         patch.object(
-            geoipdebug_command,
-            "get_logger_or_fallback",
-            return_value=MagicMock(),
+            geoip_utils,
+            "get_logger",
+            side_effect=RuntimeError("no splunkd"),
         ),
         patch.object(
             geoipdebug_command,
