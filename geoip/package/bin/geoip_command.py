@@ -91,38 +91,21 @@ def prepare(command: PreparableCommand) -> None:
 def _indexer_execution_enabled(command: PreparableCommand) -> bool:
     """Read the "Run on indexers" setting from geoip_settings.conf.
 
-    The read goes through solnlib pinned to the geoip app's namespace
-    (get_run_on_indexers_setting) rather than through command.service,
-    which the SDK namespaces to the app the search was dispatched from -
-    a read from there resolves the conf only via the app's
-    export = system metadata.
+    Reads through solnlib pinned to the geoip app's namespace, not
+    command.service, which is namespaced to the dispatching app.
 
-    Any failure means search-head-only execution: a broken settings read
-    must never take the search down, and running on the search head is
-    always safe since the databases live there. Reading the session key is
-    inside the try for the same reason - the promise is worth nothing if an
-    unexpected searchinfo kills the search on the way in. Logging the
-    failure must not take it down either, which is why the logger comes
-    from get_logger_or_fallback: whatever broke the settings read may
-    break get_logger's conf read the same way.
+    Any failure (reading the session key included) means search-head-only
+    execution: a broken settings read must never take the search down,
+    and the search head always has the databases. The fallback is also
+    reported to the search, so a user who enabled the setting can see it
+    did not take effect.
 
-    Someone who deliberately enabled "Run on indexers" gets correct
-    results from the wrong topology here, so the reverted setting is also
-    reported to the search, where it shows up in Splunk Web and the job
-    inspector.
-
-    A successful read also syncs the knowledge bundle state marker (see
-    sync_replication_marker): the settings handler and the updater input
-    cover most members, but on Splunk Cloud Victoria only one search head
-    cluster member runs the input (GitHub #76), so a captain that neither
-    runs it nor served the settings save would keep a stale marker - and
-    the knowledge bundle follows the captain's files. Syncing here turns
-    that from stuck-indefinitely into unstuck when the captain next
-    dispatches a geoip search. A read of one small file when the marker
-    already matches - not even a logger gets built then - and it never
-    raises. Never synced on a failed read:
-    the state is unknown, and a wrong write could rebuild every peer's
-    bundle for nothing.
+    A successful read also syncs the bundle state marker (see
+    sync_replication_marker): a search head cluster captain may have no
+    other writer - only one member runs the updater input on Splunk Cloud
+    Victoria - and the knowledge bundle follows the captain's files.
+    Never synced on a failed read: the state is unknown, and a wrong
+    write could rebuild every peer's bundle for nothing.
     """
     session_key = ""
     try:
