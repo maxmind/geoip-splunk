@@ -20,7 +20,7 @@ dev = [
     # Pinned to the version requirements.txt ships: the import-surface
     # test guards the names the app actually loads. urllib3 is imported
     # by solnlib.conf_manager at import time but is not declared by it.
-    "solnlib==8.1.0",
+    "solnlib==8.1.1",
     "urllib3>=2.7.0",
 ]
 lint = [

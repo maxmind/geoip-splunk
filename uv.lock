@@ -464,7 +464,7 @@ dev = [
     { name = "pygeoipupdate", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-httpserver", specifier = ">=1.0.10" },
-    { name = "solnlib", specifier = "==8.1.0" },
+    { name = "solnlib", specifier = "==8.1.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
 ]
 lint = [
@@ -965,7 +965,7 @@ wheels = [
 
 [[package]]
 name = "solnlib"
-version = "8.1.0"
+version = "8.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
@@ -976,9 +976,9 @@ dependencies = [
     { name = "sortedcontainers" },
     { name = "splunk-sdk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/21/3c/5501f1d50fae9c6ce9150d711e6d0120cbef6856275132e16b911ebddd9c/solnlib-8.1.0.tar.gz", hash = "sha256:b301ebf0dd2ef5ee6c8d8bd3389dafef34fe45c3ed9bd407b0f17d9dec99dc79", size = 61625, upload-time = "2026-05-13T12:30:55.614Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/1d/214341ec80b199af549db0a1fda4a3dfa1b72f5a6557ee8a6f9f65ed8c89/solnlib-8.1.1.tar.gz", hash = "sha256:137604dcfdd71fa959c8e31295722f486a878a5b02fdff0f8972631371a4268c", size = 63634, upload-time = "2026-08-20T13:48:40.205Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/0c/16ba87819c7438a74957331c8d0d564671dec1e85a30d464201b91f490b4/solnlib-8.1.0-py3-none-any.whl", hash = "sha256:13b49eaf28e5532b6b348aec5dc911ed398f2e397a664fdc953d21036e6e30c5", size = 88544, upload-time = "2026-05-13T12:30:54.158Z" },
+    { url = "https://files.pythonhosted.org/packages/81/a6/0243b0750afd6eed066f116cb8417a562e8456cdaba47eb2ea323b814a67/solnlib-8.1.1-py3-none-any.whl", hash = "sha256:669cf1e71910ca93f6a9ee11151d249a184885c78082440dae23f60c040a7a59", size = 90602, upload-time = "2026-08-20T13:48:39.143Z" },
 ]
 
 [[package]]
