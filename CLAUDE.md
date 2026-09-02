@@ -584,9 +584,19 @@ shipped version). `tests/requirements_test.py` enforces this: every
 `requirements.txt` pin that `uv.lock` also resolves must be the locked version,
 so a Dependabot `uv` PR that bumps one of them goes red until `requirements.txt`
 is bumped in the same change. That guard matters because the `pip` Dependabot
-job for `requirements.txt` cannot bump `solnlib`: the directory declares no
-Python version, so the job assumes the newest Python Dependabot ships (3.14.x),
-and `solnlib` requires `<3.14`.
+job for `requirements.txt` would otherwise be unable to bump `solnlib`: with no
+Python version declared in its directory, the job assumes the newest Python
+Dependabot ships (3.14.x), and `solnlib` requires `<3.14`.
+`geoip/package/lib/.python-version` exists to fix that (the pip job reads the
+file from its own directory, then falls back to the repo root). It must hold a
+full `3.13.x` - Dependabot only accepts a value that appears verbatim in
+`pyenv install --list`, which has no bare `3.13`, so a two-part version is
+silently ignored. The patch number is otherwise irrelevant (Dependabot coerces
+it to a wildcard) and Dependabot never bumps this file itself. It lives under
+`package/lib/` rather than the repo root so uv does not see it (uv would pin the
+interpreter to that exact patch); `build.sh` deletes it from `output/` because
+dotfiles are prohibited in Splunk Cloud apps. `tests/requirements_test.py`
+checks its format.
 
 ## UCC Framework Behavior
 

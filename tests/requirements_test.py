@@ -15,6 +15,7 @@ from pathlib import Path
 repo_root = Path(__file__).parent.parent
 
 _REQUIREMENTS = repo_root / "geoip" / "package" / "lib" / "requirements.txt"
+_PYTHON_VERSION = _REQUIREMENTS.with_name(".python-version")
 _UV_LOCK = repo_root / "uv.lock"
 
 _EXACT_PIN = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==(?P<version>\S+)$")
@@ -64,3 +65,13 @@ def test_pins_match_the_versions_the_tests_run_against() -> None:
     assert mismatches == {}, (
         f"requirements.txt pin differs from uv.lock (pinned, locked): {mismatches}"
     )
+
+
+def test_python_version_file_names_a_full_3_13_release() -> None:
+    # Dependabot's pip job reads this file to pick the Python it resolves
+    # against, but only accepts a version that appears verbatim in
+    # "pyenv install --list". pyenv has no bare "3.13" definition, so a
+    # two-part version is silently ignored and the job falls back to the
+    # newest Python it ships, which solnlib's "<3.14" cap rules out.
+    version = _PYTHON_VERSION.read_text().strip()
+    assert re.fullmatch(r"3\.13\.\d+", version), version
