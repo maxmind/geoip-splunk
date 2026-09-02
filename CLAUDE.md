@@ -580,7 +580,13 @@ To update all dependencies, use the `update-deps` skill
 supports. When updating `maxminddb`, `pygeoipupdate`, or `solnlib` in both
 `pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in
 sync (`solnlib` is pinned `==` in both so the import-surface test guards the
-shipped version).
+shipped version). `tests/requirements_test.py` enforces this: every
+`requirements.txt` pin that `uv.lock` also resolves must be the locked version,
+so a Dependabot `uv` PR that bumps one of them goes red until `requirements.txt`
+is bumped in the same change. That guard matters because the `pip` Dependabot
+job for `requirements.txt` cannot bump `solnlib`: the directory declares no
+Python version, so the job assumes the newest Python Dependabot ships (3.14.x),
+and `solnlib` requires `<3.14`.
 
 ## UCC Framework Behavior
 

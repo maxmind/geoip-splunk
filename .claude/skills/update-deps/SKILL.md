@@ -50,8 +50,10 @@ precious lint --command appinspect geoip-<version>.tar.gz
 ```
 
 **Important**: Keep Python on 3.13.x as that is the latest major version Splunk
-supports. When updating `maxminddb` or `pygeoipupdate` in both `pyproject.toml`
-(dev) and `requirements.txt` (runtime), ensure versions stay in sync.
+supports. When updating `maxminddb`, `pygeoipupdate`, or `solnlib` in both
+`pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in
+sync; `tests/requirements_test.py` fails when a `requirements.txt` pin differs
+from the version `uv.lock` resolves.
 
 A ruff bump can turn a rule on rather than off: `select = ["ALL"]` picks up
 every rule ruff promotes out of preview, so a Dependabot ruff PR can fail
