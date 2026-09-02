@@ -56,5 +56,9 @@ fi
 # - .hash directories from aiohttp (Cython build artifacts)
 # - Files/directories starting with "." are prohibited in Splunk Cloud apps
 find output/geoip/lib -type d -name ".hash" -prune -exec rm -rf {} +
+# - lib/.python-version exists only so Dependabot's pip job resolves against
+#   Python 3.13 rather than the newest Python it ships; nothing at runtime
+#   reads it
+rm -f output/geoip/lib/.python-version
 
 uv run -- ucc-gen package --path output/geoip
