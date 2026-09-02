@@ -588,15 +588,18 @@ job for `requirements.txt` would otherwise be unable to bump `solnlib`: with no
 Python version declared in its directory, the job assumes the newest Python
 Dependabot ships (3.14.x), and `solnlib` requires `<3.14`.
 `geoip/package/lib/.python-version` exists to fix that (the pip job reads the
-file from its own directory, then falls back to the repo root). It must hold a
-full `3.13.x` - Dependabot only accepts a value that appears verbatim in
-`pyenv install --list`, which has no bare `3.13`, so a two-part version is
-silently ignored. The patch number is otherwise irrelevant (Dependabot coerces
-it to a wildcard) and Dependabot never bumps this file itself. It lives under
-`package/lib/` rather than the repo root so uv does not see it (uv would pin the
-interpreter to that exact patch); `build.sh` deletes it from `output/` because
-dotfiles are prohibited in Splunk Cloud apps. `tests/requirements_test.py`
-checks its format.
+file from its own directory, then falls back to the repo root). It holds
+`3.13.0`, and that exact value matters: Dependabot only accepts a value that
+appears verbatim in `pyenv install --list` inside its container, and silently
+falls back to 3.14.x otherwise. That list has no bare `3.13`, and the pyenv
+Dependabot pins lags releases by months (verified 2026-09-02: `3.13.13` was
+rejected because the pinned pyenv v2.6.16 knew only up to `3.13.11`). `3.13.0`
+is in every pyenv that knows 3.13, and the patch is irrelevant anyway because
+Dependabot coerces it to a wildcard and resolves against its own pre-installed
+3.13. Dependabot never bumps this file itself. It lives under `package/lib/`
+rather than the repo root so uv does not see it (uv would pin the interpreter to
+that exact patch); `build.sh` deletes it from `output/` because dotfiles are
+prohibited in Splunk Cloud apps. `tests/requirements_test.py` checks its format.
 
 ## UCC Framework Behavior
 
