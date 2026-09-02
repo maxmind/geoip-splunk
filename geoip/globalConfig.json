@@ -108,7 +108,7 @@
     "meta": {
         "name": "geoip",
         "restRoot": "geoip",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "displayName": "MaxMind GeoIP App",
         "schemaVersion": "0.0.10",
         "supportedThemes": [
