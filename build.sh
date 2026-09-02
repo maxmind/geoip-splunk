@@ -4,7 +4,7 @@ set -eu -o pipefail
 
 rm -rf output *.tar.gz
 find geoip/package -type d -name "__pycache__" -prune -exec rm -rf {} +
-uv run -- ucc-gen build --source geoip/package --ta-version 1.2.0
+uv run -- ucc-gen build --source geoip/package --ta-version 1.3.0
 
 # Verify the post-build hook (geoip/additional_packaging.py) rewrote the
 # generated command wrappers. UCC calls that hook inside a
