@@ -70,8 +70,10 @@ def test_pins_match_the_versions_the_tests_run_against() -> None:
 def test_python_version_file_names_a_full_3_13_release() -> None:
     # Dependabot's pip job reads this file to pick the Python it resolves
     # against, but only accepts a version that appears verbatim in
-    # "pyenv install --list". pyenv has no bare "3.13" definition, so a
-    # two-part version is silently ignored and the job falls back to the
-    # newest Python it ships, which solnlib's "<3.14" cap rules out.
-    version = _PYTHON_VERSION.read_text().strip()
-    assert re.fullmatch(r"3\.13\.\d+", version), version
+    # "pyenv install --list" inside its container, and silently falls back
+    # to the newest Python it ships (which solnlib's "<3.14" cap rules
+    # out) otherwise. pyenv has no bare "3.13" definition, and the pyenv
+    # Dependabot pins lags releases by months (3.13.13 was rejected while
+    # 3.13.11 was its newest 3.13), so the file holds 3.13.0: every pyenv
+    # that knows 3.13 lists it, and Dependabot ignores the patch anyway.
+    assert _PYTHON_VERSION.read_text().strip() == "3.13.0"
