@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0 (2026-09-02)
 
 - Fix the `geoip` command silently dropping fields from some events. The Splunk
   SDK locks the set of output fields to the fields of the first result in each
