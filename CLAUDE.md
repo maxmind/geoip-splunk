@@ -638,6 +638,7 @@ The generated wrapper (`output/.../bin/geoip.py`) looks like:
 ```python
 from geoip_command import stream
 
+
 class GeoipCommand(StreamingCommand):
     def stream(self, events):
         return stream(self, events)
