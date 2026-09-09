@@ -37,6 +37,8 @@ select = ["ALL"]
 ignore = [
     # COM812: Missing trailing comma - redundant as formatter handles this
     "COM812",
+    # CPY001: Missing copyright notice - we do not want a header on every file
+    "CPY001",
     # D203: One blank line before class docstring - conflicts with D211
     "D203",
     # D213: Multi-line summary on second line - conflicts with D212
