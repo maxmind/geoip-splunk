@@ -8,7 +8,18 @@ find geoip/package -type d -name "__pycache__" -prune -exec rm -rf {} +
 # from the runtime dependency group in uv.lock, so the package ships the
 # versions the test suite ran against.
 dev-bin/export-requirements.sh
-uv run -- ucc-gen build --source geoip/package --ta-version 1.3.0
+
+# ucc-gen upgrades pip before the install and, given no version, takes the
+# newest release on PyPI: outside the lock and its release-age rule, and it
+# is the pip that then does the hash-checked install. Pass the locked pip
+# so that step installs nothing. pip is a project dependency, and
+# "uv run --locked" syncs the venv to the lock (or fails on a stale lock)
+# before reading the version, so this is the locked pip, not whatever the
+# venv happened to hold.
+pip_version=$(uv run --locked -- python -c \
+    "from importlib.metadata import version; print(version('pip'))")
+uv run -- ucc-gen build --source geoip/package --ta-version 1.3.0 \
+    --pip-version "$pip_version"
 
 # Verify the post-build hook (geoip/additional_packaging.py) rewrote the
 # generated command wrappers. UCC calls that hook inside a

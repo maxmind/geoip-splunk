@@ -585,11 +585,14 @@ put UCC's `pip install` into hash-checking mode: pip verifies every download
 against the lock and refuses to install anything the file does not list, so the
 vendored `lib/` is exactly the exported closure, and `build.sh` runs
 `dev-bin/check_vendored_lib.py` after the install to confirm it: one dist-info
-per pin at the pinned version and nothing else. `tests/requirements_test.py`
-runs the same script and checks that the output is all exact pins with hashes
-and is exactly the runtime group's dependency closure as recorded in `uv.lock`.
-splunktaucclib requires `urllib3<2`, so the whole lock resolves urllib3 1.26.x,
-the same version the app ships.
+per pin at the pinned version and nothing else. `build.sh` also passes the
+locked pip version to `ucc-gen build --pip-version`: without it, UCC upgrades
+pip to the newest PyPI release before that install, outside the lock and the
+release-age rule. `tests/requirements_test.py` runs the same script and checks
+that the output is all exact pins with hashes and is exactly the runtime group's
+dependency closure as recorded in `uv.lock`. splunktaucclib requires
+`urllib3<2`, so the whole lock resolves urllib3 1.26.x, the same version the app
+ships.
 
 Transitive dependencies only move when `uv.lock` does. Dependabot's weekly `uv`
 job bumps only direct dependencies, the packages `pyproject.toml` names (its job
