@@ -222,7 +222,9 @@ group in `pyproject.toml`). This async library handles:
 ```bash
 # Setup environment
 mise install                      # Install uv, precious
-uv sync --group lint              # Install build and lint dependencies
+# Install build and lint dependencies. A bare sync relocks when pyproject.toml
+# changed; CI adds --locked to fail on a stale uv.lock instead.
+uv sync --group lint
 git submodule update --init       # Initialize test data submodule
 
 # Build the app
@@ -576,10 +578,12 @@ writes it with `dev-bin/export-requirements.sh`, which runs
 the runtime closure (about 30: the five direct dependencies and their transitive
 dependencies) as an exact pin with its sha256 hashes. So the package ships the
 versions the test suite ran against, and a build from a lock that disagrees with
-`pyproject.toml` fails instead of shipping. The hashes put UCC's `pip install`
-into hash-checking mode: pip verifies every download against the lock and
-refuses to install anything the file does not list, so the vendored `lib/` is
-exactly the exported closure, and `build.sh` runs
+`pyproject.toml` fails instead of shipping. That guard only works if nothing
+relocks first: a bare `uv sync` rewrites a stale `uv.lock` silently, so both CI
+workflows run `uv sync --locked` and fail on a stale lock instead. The hashes
+put UCC's `pip install` into hash-checking mode: pip verifies every download
+against the lock and refuses to install anything the file does not list, so the
+vendored `lib/` is exactly the exported closure, and `build.sh` runs
 `dev-bin/check_vendored_lib.py` after the install to confirm it: one dist-info
 per pin at the pinned version and nothing else. `tests/requirements_test.py`
 runs the same script and checks that the output is all exact pins with hashes
