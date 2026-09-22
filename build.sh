@@ -77,5 +77,9 @@ uv run --locked -- python dev-bin/check_vendored_lib.py
 # - .hash directories from aiohttp (Cython build artifacts)
 # - Files/directories starting with "." are prohibited in Splunk Cloud apps
 find output/geoip/lib -type d -name ".hash" -prune -exec rm -rf {} +
+# - lib/bin holds the console scripts pip installs for packages that declare
+#   them (idna, pygeoipupdate). Nothing in the app runs them, and their
+#   shebang is the absolute path of the build machine's venv Python.
+rm -rf output/geoip/lib/bin
 
 uv run -- ucc-gen package --path output/geoip
