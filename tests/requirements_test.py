@@ -1,79 +1,98 @@
-"""Tests for geoip/package/lib/requirements.txt.
+"""Tests for the runtime requirements export.
 
-The app's runtime dependencies are vendored into the package from this
-file, while the test suite imports whatever uv.lock resolved into the
-dev venv. The two are updated by different Dependabot jobs (the pip job
-cannot bump a dependency that caps its Python version below the one it
-assumes, see CLAUDE.md), so without this check a uv PR can bump a
-package the tests run against while the shipped pin stays behind.
+geoip/package/lib/requirements.txt is not tracked. build.sh generates it
+from the runtime dependency group in uv.lock with
+dev-bin/export-requirements.sh, so the package ships the versions the
+test suite ran against. These tests run the same script and check its
+output.
 """
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
+import pytest
+from packaging.requirements import Requirement
+from packaging.utils import NormalizedName, canonicalize_name
+
 repo_root = Path(__file__).parent.parent
 
-_REQUIREMENTS = repo_root / "geoip" / "package" / "lib" / "requirements.txt"
-_PYTHON_VERSION = _REQUIREMENTS.with_name(".python-version")
+_EXPORT_SCRIPT = repo_root / "dev-bin" / "export-requirements.sh"
+_PYPROJECT = repo_root / "pyproject.toml"
 _UV_LOCK = repo_root / "uv.lock"
 
-_EXACT_PIN = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==(?P<version>\S+)$")
+_HASH_OPTION = re.compile(r"\s+--hash=sha256:[0-9a-f]{64}")
 
 
-def _normalize(name: str) -> str:
-    # PEP 503 name normalization, the form uv.lock uses.
-    return re.sub(r"[-_.]+", "-", name).lower()
+@pytest.fixture(scope="module")
+def exported(tmp_path_factory: pytest.TempPathFactory) -> list[Requirement]:
+    output = tmp_path_factory.mktemp("export") / "requirements.txt"
+    subprocess.run([_EXPORT_SCRIPT, output], check=True)  # noqa: S603
+    # uv writes each requirement's hashes on backslash-continued lines.
+    joined = output.read_text().replace("\\\n", " ")
+    lines = [line.strip() for line in joined.splitlines()]
+    lines = [line for line in lines if line and not line.startswith("#")]
+    # pip only enforces the lock's hashes if every requirement carries one.
+    without_hash = [line for line in lines if not _HASH_OPTION.search(line)]
+    assert without_hash == []
+    # The hash options are pip requirements-file syntax, not PEP 508.
+    return [Requirement(_HASH_OPTION.sub("", line)) for line in lines]
 
 
-def _load_requirement_lines() -> list[str]:
-    lines = (line.strip() for line in _REQUIREMENTS.read_text().splitlines())
-    return [line for line in lines if line and not line.startswith("#")]
+def test_every_requirement_is_an_exact_pin(exported: list[Requirement]) -> None:
+    # pip installs the file in hash-checking mode, which needs exact pins.
+    not_pinned = [str(r) for r in exported if not _is_exact_pin(r)]
+    assert not_pinned == []
 
 
-def _load_requirement_pins() -> dict[str, str]:
-    pins = {}
-    for line in _load_requirement_lines():
-        match = _EXACT_PIN.match(line)
-        assert match is not None, f"not an exact pin: {line!r}"
-        pins[_normalize(match["name"])] = match["version"]
-    return pins
+def test_export_is_exactly_the_runtime_closure(exported: list[Requirement]) -> None:
+    # Walk uv.lock from the runtime group's entries, independently of
+    # "uv export", so both a lost --only-group (a dev tool in the package)
+    # and a lost dependency (a package missing from it) fail here.
+    exported_names = {canonicalize_name(r.name) for r in exported}
+    assert exported_names == _runtime_closure()
 
 
-def _load_locked_versions() -> dict[str, str]:
+def _is_exact_pin(requirement: Requirement) -> bool:
+    specifiers = list(requirement.specifier)
+    return len(specifiers) == 1 and specifiers[0].operator == "=="
+
+
+def _runtime_closure() -> set[NormalizedName]:
+    pyproject = tomllib.loads(_PYPROJECT.read_text())
     lock = tomllib.loads(_UV_LOCK.read_text())
-    return {package["name"]: package["version"] for package in lock["package"]}
+    packages = {canonicalize_name(p["name"]): p for p in lock["package"]}
 
+    # Pairs of (package, extra), where an extra of None means the package
+    # itself. A PEP 735 {include-group = "..."} table names no package.
+    pending: list[tuple[NormalizedName, str | None]] = []
+    for entry in pyproject["dependency-groups"]["runtime"]:
+        if not isinstance(entry, str):
+            continue
+        requirement = Requirement(entry)
+        name = canonicalize_name(requirement.name)
+        pending.append((name, None))
+        pending.extend((name, extra) for extra in requirement.extras)
 
-def test_every_requirement_is_an_exact_pin() -> None:
-    # The build vendors exactly what is listed, so a range here would
-    # make the shipped version depend on when the build ran.
-    assert len(_load_requirement_pins()) == len(_load_requirement_lines())
-
-
-def test_pins_match_the_versions_the_tests_run_against() -> None:
-    pins = _load_requirement_pins()
-    locked = _load_locked_versions()
-    shared = sorted(pins.keys() & locked.keys())
-    # The check is only meaningful for packages the dev venv installs.
-    assert shared, "no runtime pin is present in uv.lock"
-    mismatches = {
-        name: (pins[name], locked[name])
-        for name in shared
-        if pins[name] != locked[name]
-    }
-    assert mismatches == {}, (
-        f"requirements.txt pin differs from uv.lock (pinned, locked): {mismatches}"
-    )
-
-
-def test_python_version_file_names_a_full_3_13_release() -> None:
-    # Dependabot's pip job reads this file to pick the Python it resolves
-    # against, but only accepts a version that appears verbatim in
-    # "pyenv install --list" inside its container, and silently falls back
-    # to the newest Python it ships (which solnlib's "<3.14" cap rules
-    # out) otherwise. pyenv has no bare "3.13" definition, and the pyenv
-    # Dependabot pins lags releases by months (3.13.13 was rejected while
-    # 3.13.11 was its newest 3.13), so the file holds 3.13.0: every pyenv
-    # that knows 3.13 lists it, and Dependabot ignores the patch anyway.
-    assert _PYTHON_VERSION.read_text().strip() == "3.13.0"
+    closure: set[NormalizedName] = set()
+    seen: set[tuple[NormalizedName, str | None]] = set()
+    while pending:
+        name, extra = pending.pop()
+        if (name, extra) in seen:
+            continue
+        seen.add((name, extra))
+        closure.add(name)
+        package = packages[name]
+        if extra is None:
+            dependencies = package.get("dependencies", [])
+        else:
+            dependencies = package["optional-dependencies"][extra]
+        for dependency in dependencies:
+            dependency_name = canonicalize_name(dependency["name"])
+            pending.append((dependency_name, None))
+            pending.extend(
+                (dependency_name, dependency_extra)
+                for dependency_extra in dependency.get("extra", [])
+            )
+    return closure

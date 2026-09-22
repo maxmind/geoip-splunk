@@ -440,16 +440,25 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "maxminddb" },
+    { name = "packaging" },
     { name = "pygeoipupdate" },
     { name = "pytest" },
     { name = "pytest-httpserver" },
     { name = "solnlib" },
-    { name = "urllib3" },
+    { name = "splunk-sdk" },
+    { name = "splunktaucclib" },
 ]
 lint = [
     { name = "mypy" },
     { name = "ruff" },
     { name = "splunk-appinspect" },
+]
+runtime = [
+    { name = "maxminddb" },
+    { name = "pygeoipupdate" },
+    { name = "solnlib" },
+    { name = "splunk-sdk" },
+    { name = "splunktaucclib" },
 ]
 
 [package.metadata]
@@ -461,16 +470,25 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "maxminddb", specifier = ">=3.1.1" },
+    { name = "packaging", specifier = ">=26.0" },
     { name = "pygeoipupdate", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-httpserver", specifier = ">=1.0.10" },
-    { name = "solnlib", specifier = "==8.1.1" },
-    { name = "urllib3", specifier = ">=2.7.0" },
+    { name = "solnlib", specifier = ">=8.1.1" },
+    { name = "splunk-sdk", specifier = ">=3.0.0" },
+    { name = "splunktaucclib", specifier = ">=8.2.0" },
 ]
 lint = [
     { name = "mypy", specifier = ">=2.3.0" },
     { name = "ruff", specifier = ">=0.15.22" },
     { name = "splunk-appinspect", specifier = ">=4.3.0" },
+]
+runtime = [
+    { name = "maxminddb", specifier = ">=3.1.1" },
+    { name = "pygeoipupdate", specifier = ">=0.1.0" },
+    { name = "solnlib", specifier = ">=8.1.1" },
+    { name = "splunk-sdk", specifier = ">=3.0.0" },
+    { name = "splunktaucclib", specifier = ">=8.2.0" },
 ]
 
 [[package]]
@@ -785,6 +803,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pysocks"
+version = "1.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429, upload-time = "2019-09-20T02:07:35.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725, upload-time = "2019-09-20T02:06:22.938Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1057,6 +1084,22 @@ wheels = [
 ]
 
 [[package]]
+name = "splunktaucclib"
+version = "8.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "defusedxml" },
+    { name = "pysocks" },
+    { name = "solnlib" },
+    { name = "splunk-sdk" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a1/c5/7dbb204b45a8c5dbb999119fbe64ae643e9fa22be8f4f21f63dbc5345862/splunktaucclib-8.2.0.tar.gz", hash = "sha256:6a4a2fa2aad3f4fcc35822259c066510233a27afa758c6561ebf15aa0d010155", size = 60845, upload-time = "2026-06-05T11:24:49.983Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/86/93a349cdb5918a80659576e9a42425f923ea81ecae8ab60124b2072f2cad/splunktaucclib-8.2.0-py3-none-any.whl", hash = "sha256:30d4e4659a9a3221d8b01dc3eb4503a9a2cfa50ae87dfd5ee847145391b1968c", size = 85949, upload-time = "2026-06-05T11:24:48.942Z" },
+]
+
+[[package]]
 name = "structlog"
 version = "24.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1085,11 +1128,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.7.0"
+version = "1.26.20"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/e8/6ff5e6bc22095cfc59b6ea711b687e2b7ed4bdb373f7eeec370a97d7392f/urllib3-1.26.20.tar.gz", hash = "sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32", size = 307380, upload-time = "2024-08-29T15:43:11.37Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+    { url = "https://files.pythonhosted.org/packages/33/cf/8435d5a7159e2a9c83a95896ed596f68cf798005fe107cc655b5c5c14704/urllib3-1.26.20-py2.py3-none-any.whl", hash = "sha256:0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e", size = 144225, upload-time = "2024-08-29T15:43:08.921Z" },
 ]
 
 [[package]]

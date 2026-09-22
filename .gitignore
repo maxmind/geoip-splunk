@@ -2,3 +2,4 @@
 /.codex
 /output
 __pycache__
+/geoip/package/lib/requirements.txt

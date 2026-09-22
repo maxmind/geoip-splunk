@@ -4,6 +4,10 @@ set -eu -o pipefail
 
 rm -rf output *.tar.gz
 find geoip/package -type d -name "__pycache__" -prune -exec rm -rf {} +
+# UCC installs lib/requirements.txt into the package. The file is generated
+# from the runtime dependency group in uv.lock, so the package ships the
+# versions the test suite ran against.
+dev-bin/export-requirements.sh
 uv run -- ucc-gen build --source geoip/package --ta-version 1.3.0
 
 # Verify the post-build hook (geoip/additional_packaging.py) rewrote the
@@ -52,13 +56,15 @@ if ! sed -n '/^\[launcher\]/,/^\[/p' output/geoip/default/app.conf \
     exit 1
 fi
 
+# The package must hold exactly the exported closure: one dist-info per pin
+# that applies to this platform, at the pinned version, and no other package.
+# pip's hash-checking mode is meant to guarantee this; check from out here so
+# a UCC or pip change cannot ship something else silently.
+uv run --locked -- python dev-bin/check_vendored_lib.py
+
 # Clean up pip-installed files that AppInspect doesn't like
 # - .hash directories from aiohttp (Cython build artifacts)
 # - Files/directories starting with "." are prohibited in Splunk Cloud apps
 find output/geoip/lib -type d -name ".hash" -prune -exec rm -rf {} +
-# - lib/.python-version exists only so Dependabot's pip job resolves against
-#   Python 3.13 rather than the newest Python it ships; nothing at runtime
-#   reads it
-rm -f output/geoip/lib/.python-version
 
 uv run -- ucc-gen package --path output/geoip

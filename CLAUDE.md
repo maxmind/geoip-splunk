@@ -209,8 +209,8 @@ requirements:
 
 ### pygeoipupdate Library
 
-The app depends on the `pygeoipupdate` PyPI package (listed in
-`package/lib/requirements.txt`). This async library handles:
+The app depends on the `pygeoipupdate` PyPI package (in the `runtime` dependency
+group in `pyproject.toml`). This async library handles:
 
 - MaxMind API authentication
 - Database download with retry logic
@@ -558,48 +558,54 @@ pattern removed it). Splunk's own defaults never escape dots, e.g. `*.conf`,
 
 ## Dependencies
 
-There are three places where dependencies are managed:
+There are two places where dependencies are managed:
 
 - **Dev tools**: `mise.toml` - uv, precious, node and prettier (managed by
   mise); Python is managed by uv
-- **Build/dev dependencies**: `pyproject.toml` - pytest, mypy, ruff, UCC
-  framework (managed by uv)
-- **App runtime dependencies**: `package/lib/requirements.txt` - splunktaucclib,
-  splunk-sdk, solnlib, maxminddb, pygeoipupdate (installed into app's lib/ at
-  build time)
+- **Python packages**: `pyproject.toml` and `uv.lock` (managed by uv). The
+  `runtime` dependency group holds the app's runtime dependencies
+  (splunktaucclib, splunk-sdk, solnlib, maxminddb, pygeoipupdate). The `dev`
+  group includes it, so the tests run against the shipped versions. The project
+  dependencies and the `lint` group are build and dev tools (UCC framework,
+  pytest, mypy, ruff, AppInspect).
+
+`geoip/package/lib/requirements.txt`, the file UCC vendors into the app's `lib/`
+at build time, is generated and not tracked (it is in `.gitignore`). `build.sh`
+writes it with `dev-bin/export-requirements.sh`, which runs
+`uv export --only-group runtime --locked` against `uv.lock`: every package in
+the runtime closure (about 30: the five direct dependencies and their transitive
+dependencies) as an exact pin with its sha256 hashes. So the package ships the
+versions the test suite ran against, and a build from a lock that disagrees with
+`pyproject.toml` fails instead of shipping. The hashes put UCC's `pip install`
+into hash-checking mode: pip verifies every download against the lock and
+refuses to install anything the file does not list, so the vendored `lib/` is
+exactly the exported closure, and `build.sh` runs
+`dev-bin/check_vendored_lib.py` after the install to confirm it: one dist-info
+per pin at the pinned version and nothing else. `tests/requirements_test.py`
+runs the same script and checks that the output is all exact pins with hashes
+and is exactly the runtime group's dependency closure as recorded in `uv.lock`.
+splunktaucclib requires `urllib3<2`, so the whole lock resolves urllib3 1.26.x,
+the same version the app ships.
+
+Transitive dependencies only move when `uv.lock` does. Dependabot's weekly `uv`
+job bumps only direct dependencies, the packages `pyproject.toml` names (its job
+log says `allowed-updates: direct`). Dependabot security updates are a separate
+job: they bump any locked package that has an advisory, transitive included
+(soupsieve, aiohttp, idna, and werkzeug have all arrived that way). So a
+transitive package without an advisory, such as grpcio or protobuf, advances
+only through `uv lock --upgrade` or `uv lock --upgrade-package <name>`. The
+`update-deps` skill covers this.
 
 ### Updating Dependencies
 
 To update all dependencies, use the `update-deps` skill
-(`.claude/skills/update-deps/SKILL.md`). Dependabot already covers
-`pyproject.toml`/`uv.lock` (the `uv` ecosystem) and
-`package/lib/requirements.txt` (the `pip` ecosystem); nothing covers
-`mise.toml`, so the mise tools are the part to bump by hand.
+(`.claude/skills/update-deps/SKILL.md`). Dependabot covers the direct
+dependencies in `pyproject.toml`/`uv.lock` (the `uv` ecosystem). The mise tools
+in `mise.toml` and the transitive dependencies in `uv.lock` are the parts to
+bump by hand.
 
 **Important**: Keep Python on 3.13.x as that is the latest major version Splunk
-supports. When updating `maxminddb`, `pygeoipupdate`, or `solnlib` in both
-`pyproject.toml` (dev) and `requirements.txt` (runtime), ensure versions stay in
-sync (`solnlib` is pinned `==` in both so the import-surface test guards the
-shipped version). `tests/requirements_test.py` enforces this: every
-`requirements.txt` pin that `uv.lock` also resolves must be the locked version,
-so a Dependabot `uv` PR that bumps one of them goes red until `requirements.txt`
-is bumped in the same change. That guard matters because the `pip` Dependabot
-job for `requirements.txt` would otherwise be unable to bump `solnlib`: with no
-Python version declared in its directory, the job assumes the newest Python
-Dependabot ships (3.14.x), and `solnlib` requires `<3.14`.
-`geoip/package/lib/.python-version` exists to fix that (the pip job reads the
-file from its own directory, then falls back to the repo root). It holds
-`3.13.0`, and that exact value matters: Dependabot only accepts a value that
-appears verbatim in `pyenv install --list` inside its container, and silently
-falls back to 3.14.x otherwise. That list has no bare `3.13`, and the pyenv
-Dependabot pins lags releases by months (verified 2026-09-02: `3.13.13` was
-rejected because the pinned pyenv v2.6.16 knew only up to `3.13.11`). `3.13.0`
-is in every pyenv that knows 3.13, and the patch is irrelevant anyway because
-Dependabot coerces it to a wildcard and resolves against its own pre-installed
-3.13. Dependabot never bumps this file itself. It lives under `package/lib/`
-rather than the repo root so uv does not see it (uv would pin the interpreter to
-that exact patch); `build.sh` deletes it from `output/` because dotfiles are
-prohibited in Splunk Cloud apps. `tests/requirements_test.py` checks its format.
+supports.
 
 ## UCC Framework Behavior
 
