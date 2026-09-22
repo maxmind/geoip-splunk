@@ -44,7 +44,8 @@ To upgrade the transitive Python dependencies:
 # Upgrade every locked Python package. Dependabot's weekly job only opens
 # PRs for direct dependencies, so this is the only way a transitive one
 # without a security advisory moves. It also moves direct dependencies
-# within their ranges. Review the uv.lock diff.
+# within their ranges. Releases younger than 7 days are skipped
+# ([tool.uv] exclude-newer in pyproject.toml). Review the uv.lock diff.
 uv lock --upgrade
 ```
 

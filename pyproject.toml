@@ -36,6 +36,13 @@ lint = [
     "splunk-appinspect>=4.3.0",
 ]
 
+[tool.uv]
+# Only resolve distributions uploaded at least 7 days ago. A compromised or
+# broken release is usually caught and yanked within days. Matches the
+# Dependabot cooldown in .github/dependabot.yml. uv.lock records the span
+# (exclude-newer-span), so "uv lock --check" stays green as time passes.
+exclude-newer = "7 days"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

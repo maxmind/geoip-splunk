@@ -604,6 +604,14 @@ dependencies in `pyproject.toml`/`uv.lock` (the `uv` ecosystem). The mise tools
 in `mise.toml` and the transitive dependencies in `uv.lock` are the parts to
 bump by hand.
 
+`[tool.uv] exclude-newer = "7 days"` in `pyproject.toml` makes every uv
+resolution (`uv lock`, `uv lock --upgrade`, and the Dependabot uv job, which
+runs uv) skip distributions uploaded in the last 7 days, so a compromised or
+broken release has time to be yanked before it can land here. It matches the
+7-day `cooldown` in `.github/dependabot.yml`. `uv.lock` records the span, not an
+absolute cutoff (`exclude-newer-span = "P7D"` under `[options]`), so
+`uv lock --check` and `uv sync --locked` stay green as time passes.
+
 **Important**: Keep Python on 3.13.x as that is the latest major version Splunk
 supports.
 
