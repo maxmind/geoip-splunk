@@ -1068,11 +1068,11 @@ wheels = [
 
 [[package]]
 name = "splunk-sdk"
-version = "3.0.0"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/4d/5e/a9419bdb4002ed22da4435a18152abf82814b38593a748c54f9d0a64fa3b/splunk_sdk-3.0.0.tar.gz", hash = "sha256:9e2c0be4ada75c6cb536c3add636fe634d31b670c141f2a59dcf8d623753e192", size = 147304, upload-time = "2026-05-12T13:57:10.293Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/66/4c5d9df1aa7f565b578dbfce01a6d03cfb1a3c62f2a24fd0cca87b8b8a14/splunk_sdk-3.0.1.tar.gz", hash = "sha256:e4077ea6bf5c5ffbe8f28c488041123c72b59095de5eabaeedd3af5022cb4d5d", size = 147666, upload-time = "2026-09-09T16:22:44.617Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/4c/c04948c89dfadfddcd17a0be6540d21993d152166ed01645fde20af58e22/splunk_sdk-3.0.0-py3-none-any.whl", hash = "sha256:e70c08f7370c3ff38a41ea0c014fc1fff360818718d76e7eb2b75e42c6189cf4", size = 175946, upload-time = "2026-05-12T13:57:08.442Z" },
+    { url = "https://files.pythonhosted.org/packages/64/47/52730b9bad8e3f10d90543659914d58f568a9bc01090bb657921dc6ed686/splunk_sdk-3.0.1-py3-none-any.whl", hash = "sha256:cf5b0dc6a6908c84d13f3c62658f54ef1aec2d8421a6646b5281a2f14f0de6ed", size = 176209, upload-time = "2026-09-09T16:22:43.047Z" },
 ]
 
 [[package]]
