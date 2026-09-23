@@ -25,7 +25,9 @@ runtime = [
 ]
 dev = [
     { include-group = "runtime" },
-    # tests/requirements_test.py parses requirement strings with it.
+    # tests/requirements_test.py parses requirement strings with it, and
+    # build.sh runs dev-bin/check_vendored_lib.py, which evaluates the
+    # exported pins' markers with it.
     "packaging>=26.0",
     "pytest>=9.1.1",
     "pytest-httpserver>=1.0.10",
