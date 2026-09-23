@@ -12,22 +12,38 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
+# The app's runtime dependencies. build.sh exports this group from uv.lock
+# into geoip/package/lib/requirements.txt (see dev-bin/export-requirements.sh),
+# which UCC vendors into the package, so the shipped versions are the locked
+# ones the tests run against.
+runtime = [
     "maxminddb>=3.1.1",
     "pygeoipupdate>=0.1.0",
+    "solnlib>=8.1.1",
+    "splunk-sdk>=3.0.0",
+    "splunktaucclib>=8.2.0",
+]
+dev = [
+    { include-group = "runtime" },
+    # tests/requirements_test.py parses requirement strings with it, and
+    # build.sh runs dev-bin/check_vendored_lib.py, which evaluates the
+    # exported pins' markers with it.
+    "packaging>=26.0",
     "pytest>=9.1.1",
     "pytest-httpserver>=1.0.10",
-    # Pinned to the version requirements.txt ships: the import-surface
-    # test guards the names the app actually loads. urllib3 is imported
-    # by solnlib.conf_manager at import time but is not declared by it.
-    "solnlib==8.1.1",
-    "urllib3>=2.7.0",
 ]
 lint = [
     "mypy>=2.3.0",
     "ruff>=0.15.22",
     "splunk-appinspect>=4.3.0",
 ]
+
+[tool.uv]
+# Only resolve distributions uploaded at least 7 days ago. A compromised or
+# broken release is usually caught and yanked within days. Matches the
+# Dependabot cooldown in .github/dependabot.yml. uv.lock records the span
+# (exclude-newer-span), so "uv lock --check" stays green as time passes.
+exclude-newer = "7 days"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -98,9 +114,9 @@ ignore_missing_imports = true
 module = ["splunktaucclib", "splunktaucclib.*"]
 ignore_missing_imports = true
 
-# splunklib (splunk-sdk) is untyped; it is in the dev venv as a
-# dependency of solnlib, which is installed so the suite can verify
-# geoip_utils binds solnlib's real names.
+# splunklib (splunk-sdk) is untyped. It is in the dev venv through the
+# runtime group, which is installed so the suite can verify geoip_utils
+# binds solnlib's real names.
 [[tool.mypy.overrides]]
 module = ["splunklib", "splunklib.*"]
 ignore_missing_imports = true

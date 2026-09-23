@@ -21,7 +21,7 @@ jobs:
         run: uv python install --python-preference only-managed 3.13
 
       - name: Install dependencies
-        run: uv sync --group lint
+        run: uv sync --locked --group lint
 
       - name: Check formatting
         run: |

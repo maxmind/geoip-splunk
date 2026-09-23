@@ -24,7 +24,7 @@ jobs:
         run: uv python install --python-preference only-managed 3.13
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
       - name: Run tests
         run: uv run pytest tests
