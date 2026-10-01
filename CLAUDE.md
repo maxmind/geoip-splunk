@@ -329,6 +329,13 @@ The main UCC configuration file. Defines:
   defaults)
 - UI settings
 
+Every `customSearchCommand` entry sets `requiredSearchAssistant: true` and the
+help keys UCC turns into `default/searchbnf.conf`. UCC 6.6.0 added `shortdesc`,
+`tags`, and `examples`. In `syntax`, use built-in datatypes such as `<string>`
+and `<field>`, and `(<term>)?` for an optional term. UCC also copies `syntax`
+and `description` into the wrapper docstring, so keep backslashes and triple
+quotes out of them.
+
 #### Configuration Tab Types
 
 Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or

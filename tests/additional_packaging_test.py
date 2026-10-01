@@ -2,15 +2,23 @@
 
 import importlib.util
 import json
+import warnings
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+from splunk_add_on_ucc_framework.generators.python_files.create_custom_command_python import (  # noqa: E501
+    CustomCommandPy,
+)
+from splunk_add_on_ucc_framework.global_config import GlobalConfig
+
+from tests.global_config import GLOBAL_CONFIG_PATH
 
 _MODULE_PATH = Path(__file__).parent.parent / "geoip" / "additional_packaging.py"
 
 # What UCC's custom command templates generate (abbreviated), containing
-# all the markers the hook rewrites.
+# all the markers the hook rewrites. UCC copies the syntax and description
+# into the class docstring.
 _GENERATED_GEOIP_WRAPPER = """\
 import sys
 import import_declare_test
@@ -21,6 +29,15 @@ from geoip_command import stream
 
 @Configuration()
 class GeoipCommand(StreamingCommand):
+    \"\"\"
+
+    ##Syntax
+    geoip databases=<string>
+
+    ##Description
+    Adds MaxMind GeoIP and GeoLite data to events.
+
+    \"\"\"
 
     databases = Option(name='databases', require=True)
 
@@ -40,6 +57,15 @@ from geoipdebug_command import generate
 
 @Configuration()
 class GeoipdebugCommand(GeneratingCommand):
+    \"\"\"
+
+    ##Syntax
+    geoipdebug [indexers=<bool>]
+
+    ##Description
+    Reports GeoIP database and app diagnostics.
+
+    \"\"\"
 
     indexers = Option(name='indexers', require=False, \\
         validate=validators.Boolean(), default='false')
@@ -105,6 +131,32 @@ def test_make_command_distribution_toggleable_rewrites_geoipdebug_wrapper(
     ) in result
     # The rewritten wrapper must still be valid Python.
     compile(result, str(wrappers["geoipdebug.py"]), "exec")
+
+
+def test_make_command_distribution_toggleable_rewrites_ucc_wrappers(
+    tmp_path: Path,
+) -> None:
+    """The hook must rewrite the wrappers UCC renders from the real
+    globalConfig.json, help text included, into valid Python."""
+    global_config = GlobalConfig.from_file(str(GLOBAL_CONFIG_PATH))
+    generated = CustomCommandPy(global_config, "unused", "unused").generate()
+    assert generated is not None
+    (tmp_path / "bin").mkdir()
+    for wrapper in generated:
+        (tmp_path / "bin" / wrapper["file_name"]).write_text(wrapper["content"])
+
+    _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
+
+    for wrapper in generated:
+        path = tmp_path / "bin" / wrapper["file_name"]
+        result = path.read_text()
+        assert "@Configuration(distributed=False)" in result
+        assert "    def prepare(self):\n        prepare(self)\n" in result
+        # A backslash in the help text is a SyntaxWarning, and a triple
+        # quote is a SyntaxError.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            compile(result, str(path), "exec")
 
 
 @pytest.mark.parametrize(

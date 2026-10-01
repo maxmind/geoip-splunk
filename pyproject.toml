@@ -8,7 +8,7 @@ license-files = ["LICENSE-*"]
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "pip>=26.2.1",
-    "splunk-add-on-ucc-framework>=6.5.3",
+    "splunk-add-on-ucc-framework>=6.6.0",
 ]
 
 [dependency-groups]
@@ -119,6 +119,11 @@ ignore_missing_imports = true
 # binds solnlib's real names.
 [[tool.mypy.overrides]]
 module = ["splunklib", "splunklib.*"]
+ignore_missing_imports = true
+
+# The UCC framework is untyped. The tests render its generated files.
+[[tool.mypy.overrides]]
+module = ["splunk_add_on_ucc_framework", "splunk_add_on_ucc_framework.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
