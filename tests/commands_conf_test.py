@@ -7,13 +7,13 @@ silently unregistered, so the two files must stay in sync.
 """
 
 import configparser
-import json
 from pathlib import Path
+
+from tests.global_config import load_custom_search_commands
 
 repo_root = Path(__file__).parent.parent
 
 _COMMANDS_CONF = repo_root / "geoip" / "package" / "default" / "commands.conf"
-_GLOBAL_CONFIG = repo_root / "geoip" / "globalConfig.json"
 
 
 def _load_commands_conf() -> configparser.ConfigParser:
@@ -23,8 +23,7 @@ def _load_commands_conf() -> configparser.ConfigParser:
 
 
 def _load_command_names() -> list[str]:
-    global_config = json.loads(_GLOBAL_CONFIG.read_text())
-    return [command["commandName"] for command in global_config["customSearchCommand"]]
+    return [command["commandName"] for command in load_custom_search_commands()]
 
 
 def test_every_command_has_a_stanza() -> None:
