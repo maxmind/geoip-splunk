@@ -443,10 +443,10 @@ generated wrappers (`bin/geoip.py` and `bin/geoipdebug.py`): it imports
 changes the decorator to `@Configuration(distributed=False)` as a fail-safe
 default in case `prepare()` somehow does not run. The command list comes from
 `globalConfig.json` (commandType picks the entry point to wrap), so a command
-added there cannot ship without the rewrite. The hook raises if any marker is
-missing, so a UCC template change fails the build loudly rather than silently
-regressing; `build.sh` re-checks the markers as a backstop because UCC swallows
-`ImportError` from the hook.
+added there cannot ship without the rewrite. The hook raises unless each marker
+occurs exactly once outside the help docstring, so a UCC template change fails
+the build loudly rather than silently regressing; `build.sh` re-checks the
+markers as a backstop because UCC swallows `ImportError` from the hook.
 
 ### package/default/distsearch.conf and server.conf
 
