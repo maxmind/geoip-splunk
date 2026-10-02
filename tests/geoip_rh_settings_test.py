@@ -7,24 +7,16 @@ two files don't drift apart.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 from geoip_utils import SETTINGS_FIELD_SPECS
 
-repo_root = Path(__file__).parent.parent
-global_config_path = repo_root / "geoip" / "globalConfig.json"
+from tests.global_config import load_global_config
 
 # The logging tab is a UCC builtin ({"type": "loggingTab"}) with no entity
 # list to compare against.
 _LOGGING_TAB = "logging"
-
-
-def _load_global_config() -> dict[str, Any]:
-    with global_config_path.open() as f:
-        return json.load(f)  # type: ignore[no-any-return]
 
 
 def _settings_tabs() -> list[str]:
@@ -35,7 +27,7 @@ def _settings_tabs() -> list[str]:
     instance tables (the databases tab) are a separate endpoint with their
     own conf file, so they are not part of these specs.
     """
-    tabs = _load_global_config()["pages"]["configuration"]["tabs"]
+    tabs = load_global_config()["pages"]["configuration"]["tabs"]
     return [t["name"] for t in tabs if "name" in t and "table" not in t]
 
 
@@ -50,7 +42,7 @@ def _get_config_tab(config: dict[str, Any], tab_name: str) -> dict[str, Any]:
 
 @pytest.mark.parametrize("tab_name", _TABS)
 def test_field_names_match(tab_name: str) -> None:
-    config = _load_global_config()
+    config = load_global_config()
     tab = _get_config_tab(config, tab_name)
 
     config_fields = [e["field"] for e in tab["entity"]]
@@ -61,7 +53,7 @@ def test_field_names_match(tab_name: str) -> None:
 
 @pytest.mark.parametrize("tab_name", _TABS)
 def test_field_required_and_encrypted_match(tab_name: str) -> None:
-    config = _load_global_config()
+    config = load_global_config()
     tab = _get_config_tab(config, tab_name)
 
     for entity in tab["entity"]:
@@ -80,7 +72,7 @@ def test_field_required_and_encrypted_match(tab_name: str) -> None:
 
 @pytest.mark.parametrize("tab_name", _TABS)
 def test_validator_patterns_match(tab_name: str) -> None:
-    config = _load_global_config()
+    config = load_global_config()
     tab = _get_config_tab(config, tab_name)
 
     for entity in tab["entity"]:
