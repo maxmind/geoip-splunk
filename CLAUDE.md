@@ -18,7 +18,7 @@ search command (`geoip`) that enriches events with data from MaxMind databases
 ## The geoip Command
 
 ```spl
-| geoip [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<field>] databases=<databases>
 ```
 
 - `databases` (required): Comma-separated list of database names. **Must be
