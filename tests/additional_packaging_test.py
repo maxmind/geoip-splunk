@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import warnings
 from pathlib import Path
 from types import ModuleType
@@ -12,7 +13,7 @@ from splunk_add_on_ucc_framework.generators.python_files.create_custom_command_p
 )
 from splunk_add_on_ucc_framework.global_config import GlobalConfig
 
-from tests.global_config import GLOBAL_CONFIG_PATH
+from tests.global_config import GLOBAL_CONFIG_PATH, load_custom_search_commands
 
 _MODULE_PATH = Path(__file__).parent.parent / "geoip" / "additional_packaging.py"
 
@@ -137,7 +138,8 @@ def test_make_command_distribution_toggleable_rewrites_ucc_wrappers(
     tmp_path: Path,
 ) -> None:
     """The hook must rewrite the wrappers UCC renders from the real
-    globalConfig.json, help text included, into valid Python."""
+    globalConfig.json into valid Python. A marker in the help text fails
+    here, because the hook then finds it twice."""
     global_config = GlobalConfig.from_file(str(GLOBAL_CONFIG_PATH))
     generated = CustomCommandPy(global_config, "unused", "unused").generate()
     assert generated is not None
@@ -147,10 +149,12 @@ def test_make_command_distribution_toggleable_rewrites_ucc_wrappers(
 
     _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
 
-    for wrapper in generated:
-        path = tmp_path / "bin" / wrapper["file_name"]
+    for command in load_custom_search_commands():
+        path = tmp_path / "bin" / f"{command['commandName']}.py"
         result = path.read_text()
-        assert "@Configuration(distributed=False)" in result
+        module = command["fileName"].removesuffix(".py")
+        assert re.search(rf"^from {module} import .*\bprepare\b", result, re.MULTILINE)
+        assert "@Configuration(distributed=False)\nclass " in result
         assert "    def prepare(self):\n        prepare(self)\n" in result
         # A backslash in the help text is a SyntaxWarning, and a triple
         # quote is a SyntaxError.
@@ -159,64 +163,38 @@ def test_make_command_distribution_toggleable_rewrites_ucc_wrappers(
             compile(result, str(path), "exec")
 
 
-# Each replacement keeps the wrapper valid Python, as a real template
-# change would: the hook parses the wrapper to find its help docstring.
 @pytest.mark.parametrize(
-    ("wrapper_name", "marker", "replacement"),
+    ("wrapper_name", "marker"),
     [
-        ("geoip.py", "from geoip_command import stream", "# removed"),
-        ("geoip.py", "@Configuration()", "# removed"),
-        ("geoip.py", "    def stream(self, events):", "    def run(self, events):"),
-        ("geoipdebug.py", "from geoipdebug_command import generate", "# removed"),
-        ("geoipdebug.py", "@Configuration()", "# removed"),
-        ("geoipdebug.py", "    def generate(self):", "    def run(self):"),
+        ("geoip.py", "from geoip_command import stream"),
+        ("geoip.py", "@Configuration()"),
+        ("geoip.py", "    def stream(self, events):"),
+        ("geoipdebug.py", "from geoipdebug_command import generate"),
+        ("geoipdebug.py", "@Configuration()"),
+        ("geoipdebug.py", "    def generate(self):"),
     ],
 )
 def test_make_command_distribution_toggleable_raises_without_marker(
     tmp_path: Path,
     wrapper_name: str,
     marker: str,
-    replacement: str,
 ) -> None:
     wrappers = _write_wrappers(tmp_path)
     wrapper = wrappers[wrapper_name]
-    wrapper.write_text(wrapper.read_text().replace(marker, replacement))
+    wrapper.write_text(wrapper.read_text().replace(marker, "# removed"))
 
     with pytest.raises(RuntimeError, match="template may have changed"):
         _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
 
 
-@pytest.mark.parametrize(
-    "marker", ["from geoip_command import stream", "@Configuration()"]
-)
-def test_make_command_distribution_toggleable_ignores_marker_in_help(
-    tmp_path: Path,
-    marker: str,
-) -> None:
-    """A marker in the help docstring is neither counted nor rewritten."""
-    wrappers = _write_wrappers(tmp_path)
-    wrapper = wrappers["geoip.py"]
-    help_line = f"    ##Description\n    {marker}\n"
-    wrapper.write_text(wrapper.read_text().replace("    ##Description\n", help_line))
-
-    _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
-
-    result = wrapper.read_text()
-    assert help_line in result
-    assert "@Configuration(distributed=False)\nclass GeoipCommand" in result
-
-
-def test_make_command_distribution_toggleable_raises_on_marker_only_in_help(
+def test_make_command_distribution_toggleable_raises_on_duplicate_marker(
     tmp_path: Path,
 ) -> None:
-    """If the template drops a marker, a copy in the help text must not
-    stand in for it."""
     wrappers = _write_wrappers(tmp_path)
     wrapper = wrappers["geoip.py"]
-    source = wrapper.read_text().replace("@Configuration()\n", "")
     wrapper.write_text(
-        source.replace(
-            "    ##Description\n", "    ##Description\n    @Configuration()\n"
+        wrapper.read_text().replace(
+            "@Configuration()\n", "@Configuration()\n@Configuration()\n"
         )
     )
 

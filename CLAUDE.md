@@ -333,8 +333,8 @@ Every `customSearchCommand` entry sets `requiredSearchAssistant: true` and the
 help keys UCC turns into `default/searchbnf.conf`. UCC 6.6.0 added `shortdesc`,
 `tags`, and `examples`. In `syntax`, use built-in datatypes such as `<string>`
 and `<field>`, and `(<term>)?` for an optional term. UCC also copies `syntax`
-and `description` into the wrapper docstring, so keep backslashes and triple
-quotes out of them.
+and `description` into the wrapper docstring, so keep backslashes, triple
+quotes, and the hook's markers out of them.
 
 #### Configuration Tab Types
 
@@ -444,9 +444,9 @@ changes the decorator to `@Configuration(distributed=False)` as a fail-safe
 default in case `prepare()` somehow does not run. The command list comes from
 `globalConfig.json` (commandType picks the entry point to wrap), so a command
 added there cannot ship without the rewrite. The hook raises unless each marker
-occurs exactly once outside the help docstring, so a UCC template change fails
-the build loudly rather than silently regressing; `build.sh` re-checks the
-markers as a backstop because UCC swallows `ImportError` from the hook.
+occurs exactly once, so a UCC template change fails the build loudly rather than
+silently regressing; `build.sh` re-checks the markers as a backstop because UCC
+swallows `ImportError` from the hook.
 
 ### package/default/distsearch.conf and server.conf
 

@@ -7,7 +7,6 @@ and the build still exits 0 with the rewrite below silently skipped.
 build.sh verifies the rewrite afterwards, outside that try, as a backstop.
 """
 
-import ast
 import json
 import shutil
 from pathlib import Path
@@ -17,10 +16,6 @@ _GLOBAL_CONFIG_PATH = Path(__file__).resolve().parent / "globalConfig.json"
 # UCC's wrapper templates by commandType: the entry point the wrapper
 # imports from the command's source module, and the line of the generated
 # wrapper the prepare() method is injected before.
-# Stands in for the wrapper's help docstring while the markers are
-# replaced.
-_HELP_PLACEHOLDER = "<help docstring>"
-
 _COMMAND_ENTRY_POINTS = {
     "streaming": ("stream", "    def stream(self, events):"),
     "generating": ("generate", "    def generate(self):"),
@@ -100,14 +95,8 @@ def _inject_prepare(
     ``prepare()`` method before the wrapper's entry method, and changes
     the bare ``@Configuration()`` decorator to
     ``@Configuration(distributed=False)``.
-
-    UCC copies the command's syntax and description into the class
-    docstring, so the markers are matched with that docstring set aside.
     """
     source = wrapper.read_text()
-    help_docstring = _help_docstring(source)
-    if help_docstring:
-        source = source.replace(help_docstring, _HELP_PLACEHOLDER, 1)
     source = _replace_marker(
         source,
         wrapper,
@@ -126,21 +115,15 @@ def _inject_prepare(
         method_marker,
         "    def prepare(self):\n        prepare(self)\n\n" + method_marker,
     )
-    if help_docstring:
-        source = source.replace(_HELP_PLACEHOLDER, help_docstring, 1)
     wrapper.write_text(source)
 
 
-def _help_docstring(source: str) -> str:
-    """Return the raw source of the wrapper's class docstring, or ""."""
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.ClassDef) and ast.get_docstring(node) is not None:
-            return ast.get_source_segment(source, node.body[0]) or ""
-    return ""
-
-
 def _replace_marker(source: str, wrapper: Path, marker: str, replacement: str) -> str:
-    """Replace marker in source, raising unless it occurs exactly once."""
+    """Replace marker in source, raising unless it occurs exactly once.
+
+    UCC copies the command's syntax and description into the wrapper's
+    docstring, so a marker in that help text also fails this check.
+    """
     if source.count(marker) != 1:
         msg = (
             f"Expected {marker!r} once in {wrapper}; the UCC custom command "
