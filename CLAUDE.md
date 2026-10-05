@@ -18,7 +18,7 @@ search command (`geoip`) that enriches events with data from MaxMind databases
 ## The geoip Command
 
 ```spl
-| geoip [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<field>] databases=<databases>
 ```
 
 - `databases` (required): Comma-separated list of database names. **Must be
@@ -329,6 +329,13 @@ The main UCC configuration file. Defines:
   defaults)
 - UI settings
 
+Every `customSearchCommand` entry sets `requiredSearchAssistant: true` and the
+help keys UCC turns into `default/searchbnf.conf`. UCC 6.6.0 added `shortdesc`,
+`tags`, and `examples`. In `syntax`, use built-in datatypes such as `<string>`
+and `<field>`, and `(<term>)?` for an optional term. UCC also copies `syntax`
+and `description` into the wrapper docstring, so keep backslashes, triple
+quotes, and the hook's markers out of them.
+
 #### Configuration Tab Types
 
 Tabs in `pages.configuration.tabs` can be either **multi-instance tables** or
@@ -436,10 +443,10 @@ generated wrappers (`bin/geoip.py` and `bin/geoipdebug.py`): it imports
 changes the decorator to `@Configuration(distributed=False)` as a fail-safe
 default in case `prepare()` somehow does not run. The command list comes from
 `globalConfig.json` (commandType picks the entry point to wrap), so a command
-added there cannot ship without the rewrite. The hook raises if any marker is
-missing, so a UCC template change fails the build loudly rather than silently
-regressing; `build.sh` re-checks the markers as a backstop because UCC swallows
-`ImportError` from the hook.
+added there cannot ship without the rewrite. The hook raises unless each marker
+occurs exactly once, so a UCC template change fails the build loudly rather than
+silently regressing; `build.sh` re-checks the markers as a backstop because UCC
+swallows `ImportError` from the hook.
 
 ### package/default/distsearch.conf and server.conf
 

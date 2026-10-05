@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 (unreleased)
+
+- Add Splunk Web search assistant help for the `geoip` and `geoipdebug`
+  commands.
+
 ## 1.3.0 (2026-09-02)
 
 - Fix the `geoip` command silently dropping fields from some events. The Splunk

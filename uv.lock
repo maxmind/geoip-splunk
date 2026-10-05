@@ -465,7 +465,7 @@ runtime = [
 [package.metadata]
 requires-dist = [
     { name = "pip", specifier = ">=26.2.1" },
-    { name = "splunk-add-on-ucc-framework", specifier = ">=6.5.3" },
+    { name = "splunk-add-on-ucc-framework", specifier = ">=6.6.0" },
 ]
 
 [package.metadata.requires-dev]

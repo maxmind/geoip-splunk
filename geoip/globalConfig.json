@@ -124,6 +124,22 @@
             "commandName": "geoip",
             "fileName": "geoip_command.py",
             "commandType": "streaming",
+            "requiredSearchAssistant": true,
+            "description": "Adds MaxMind GeoIP and GeoLite data to events by looking up the IP address in each event. The field option names the event field with the IP address (default ip), and prefix sets a prefix for the output field names. Quote the databases value when it lists more than one database.",
+            "shortdesc": "Adds MaxMind GeoIP and GeoLite data to events.",
+            "syntax": "geoip (prefix=<string>)? (field=<field>)? databases=<string>",
+            "usage": "public",
+            "tags": "maxmind geoip geolite ip",
+            "examples": [
+                {
+                    "search": "... | geoip databases=GeoIP2-Country",
+                    "comment": "Look up the IP address in the ip field."
+                },
+                {
+                    "search": "... | geoip prefix=geo_ field=client_ip databases=\"GeoIP2-City,GeoIP2-Anonymous-IP\"",
+                    "comment": "Look up the client_ip field in two databases, and prefix the output fields with geo_. Quote the list."
+                }
+            ],
             "arguments": [
                 {
                     "name": "field",
@@ -148,6 +164,22 @@
             "commandName": "geoipdebug",
             "fileName": "geoipdebug_command.py",
             "commandType": "generating",
+            "requiredSearchAssistant": true,
+            "description": "Reports the status of each configured GeoIP database, plus the app, Splunk, and Python versions and the app settings. Run it when you contact support. With indexers=true, it runs on the search head and on each search peer.",
+            "shortdesc": "Reports GeoIP database and app diagnostics.",
+            "syntax": "geoipdebug (indexers=<bool>)?",
+            "usage": "public",
+            "tags": "maxmind geoip geolite diagnostic",
+            "examples": [
+                {
+                    "search": "| geoipdebug",
+                    "comment": "Report diagnostics from the search head."
+                },
+                {
+                    "search": "| geoipdebug indexers=true",
+                    "comment": "Also run on each search peer and report its database copies."
+                }
+            ],
             "arguments": [
                 {
                     "name": "indexers",

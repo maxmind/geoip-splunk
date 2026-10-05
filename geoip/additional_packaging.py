@@ -119,10 +119,14 @@ def _inject_prepare(
 
 
 def _replace_marker(source: str, wrapper: Path, marker: str, replacement: str) -> str:
-    """Replace marker in source, raising if it is not present."""
-    if marker not in source:
+    """Replace marker in source, raising unless it occurs exactly once.
+
+    UCC copies the command's syntax and description into the wrapper's
+    docstring, so a marker in that help text also fails this check.
+    """
+    if source.count(marker) != 1:
         msg = (
-            f"Expected {marker!r} in {wrapper}; the UCC custom command "
+            f"Expected {marker!r} once in {wrapper}; the UCC custom command "
             "template may have changed - update "
             "make_command_distribution_toggleable."
         )

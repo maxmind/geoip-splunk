@@ -2,15 +2,22 @@
 
 import importlib.util
 import json
+import re
+import warnings
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+from splunk_add_on_ucc_framework.generators.python_files import CustomCommandPy
+from splunk_add_on_ucc_framework.global_config import GlobalConfig
+
+from tests.global_config import GLOBAL_CONFIG_PATH, load_custom_search_commands
 
 _MODULE_PATH = Path(__file__).parent.parent / "geoip" / "additional_packaging.py"
 
 # What UCC's custom command templates generate (abbreviated), containing
-# all the markers the hook rewrites.
+# all the markers the hook rewrites. UCC copies the syntax and description
+# into the class docstring.
 _GENERATED_GEOIP_WRAPPER = """\
 import sys
 import import_declare_test
@@ -21,6 +28,15 @@ from geoip_command import stream
 
 @Configuration()
 class GeoipCommand(StreamingCommand):
+    \"\"\"
+
+    ##Syntax
+    geoip databases=<string>
+
+    ##Description
+    Adds MaxMind GeoIP and GeoLite data to events.
+
+    \"\"\"
 
     databases = Option(name='databases', require=True)
 
@@ -40,6 +56,15 @@ from geoipdebug_command import generate
 
 @Configuration()
 class GeoipdebugCommand(GeneratingCommand):
+    \"\"\"
+
+    ##Syntax
+    geoipdebug [indexers=<bool>]
+
+    ##Description
+    Reports GeoIP database and app diagnostics.
+
+    \"\"\"
 
     indexers = Option(name='indexers', require=False, \\
         validate=validators.Boolean(), default='false')
@@ -107,6 +132,35 @@ def test_make_command_distribution_toggleable_rewrites_geoipdebug_wrapper(
     compile(result, str(wrappers["geoipdebug.py"]), "exec")
 
 
+def test_make_command_distribution_toggleable_rewrites_ucc_wrappers(
+    tmp_path: Path,
+) -> None:
+    """The hook must rewrite the wrappers UCC renders from the real
+    globalConfig.json into valid Python. A marker in the help text fails
+    here, because the hook then finds it twice."""
+    global_config = GlobalConfig.from_file(str(GLOBAL_CONFIG_PATH))
+    generated = CustomCommandPy(global_config, "unused", "unused").generate()
+    assert generated is not None
+    (tmp_path / "bin").mkdir()
+    for wrapper in generated:
+        (tmp_path / "bin" / wrapper["file_name"]).write_text(wrapper["content"])
+
+    _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
+
+    for command in load_custom_search_commands():
+        path = tmp_path / "bin" / f"{command['commandName']}.py"
+        result = path.read_text()
+        module = command["fileName"].removesuffix(".py")
+        assert re.search(rf"^from {module} import .*\bprepare\b", result, re.MULTILINE)
+        assert "@Configuration(distributed=False)\nclass " in result
+        assert "    def prepare(self):\n        prepare(self)\n" in result
+        # A backslash in the help text is a SyntaxWarning, and a triple
+        # quote is a SyntaxError.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            compile(result, str(path), "exec")
+
+
 @pytest.mark.parametrize(
     ("wrapper_name", "marker"),
     [
@@ -126,6 +180,21 @@ def test_make_command_distribution_toggleable_raises_without_marker(
     wrappers = _write_wrappers(tmp_path)
     wrapper = wrappers[wrapper_name]
     wrapper.write_text(wrapper.read_text().replace(marker, "# removed"))
+
+    with pytest.raises(RuntimeError, match="template may have changed"):
+        _load_additional_packaging().make_command_distribution_toggleable(tmp_path)
+
+
+def test_make_command_distribution_toggleable_raises_on_duplicate_marker(
+    tmp_path: Path,
+) -> None:
+    wrappers = _write_wrappers(tmp_path)
+    wrapper = wrappers["geoip.py"]
+    wrapper.write_text(
+        wrapper.read_text().replace(
+            "@Configuration()\n", "@Configuration()\n@Configuration()\n"
+        )
+    )
 
     with pytest.raises(RuntimeError, match="template may have changed"):
         _load_additional_packaging().make_command_distribution_toggleable(tmp_path)

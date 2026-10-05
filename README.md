@@ -63,7 +63,7 @@ from MaxMind databases.
 ### Syntax
 
 ```spl
-| geoip [prefix=<string>] [field=<string>] databases=<databases>
+| geoip [prefix=<string>] [field=<field>] databases=<databases>
 ```
 
 ### Arguments
