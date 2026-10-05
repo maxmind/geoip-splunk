@@ -52,6 +52,8 @@ def test_every_syntax_matches_its_command() -> None:
         assert "[" not in syntax, name
         arguments = {argument["name"] for argument in command["arguments"]}
         assert set(re.findall(r"(\w+)=", syntax)) == arguments, name
+        optional = {a["name"] for a in command["arguments"] if not a.get("required")}
+        assert set(re.findall(r"\((\w+)=[^)]*\)\?", syntax)) == optional, name
 
 
 def _render_searchbnf_conf() -> configparser.ConfigParser:
