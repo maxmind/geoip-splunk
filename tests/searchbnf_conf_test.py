@@ -11,9 +11,7 @@ example keys when it builds.
 import configparser
 import re
 
-from splunk_add_on_ucc_framework.generators.conf_files.create_searchbnf_conf import (
-    SearchbnfConf,
-)
+from splunk_add_on_ucc_framework.generators.conf_files import SearchbnfConf
 from splunk_add_on_ucc_framework.global_config import GlobalConfig
 
 from tests.global_config import GLOBAL_CONFIG_PATH, load_custom_search_commands

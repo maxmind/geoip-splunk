@@ -8,9 +8,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from splunk_add_on_ucc_framework.generators.python_files.create_custom_command_python import (  # noqa: E501
-    CustomCommandPy,
-)
+from splunk_add_on_ucc_framework.generators.python_files import CustomCommandPy
 from splunk_add_on_ucc_framework.global_config import GlobalConfig
 
 from tests.global_config import GLOBAL_CONFIG_PATH, load_custom_search_commands
