@@ -1006,7 +1006,7 @@ wheels = [
 
 [[package]]
 name = "solnlib"
-version = "8.1.1"
+version = "8.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
@@ -1017,9 +1017,9 @@ dependencies = [
     { name = "sortedcontainers" },
     { name = "splunk-sdk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/1d/214341ec80b199af549db0a1fda4a3dfa1b72f5a6557ee8a6f9f65ed8c89/solnlib-8.1.1.tar.gz", hash = "sha256:137604dcfdd71fa959c8e31295722f486a878a5b02fdff0f8972631371a4268c", size = 63634, upload-time = "2026-08-20T13:48:40.205Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/b7/e72a6f885d54ec6ba5317e4fa7818c8a802d705a8af63ca1e7b0ff193c09/solnlib-8.2.0.tar.gz", hash = "sha256:7d1f3ff40367a940b28630a71482ac0a8ac2dc91bcbdc295fc074a487251f7e3", size = 65148, upload-time = "2026-10-21T20:11:23.529Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/a6/0243b0750afd6eed066f116cb8417a562e8456cdaba47eb2ea323b814a67/solnlib-8.1.1-py3-none-any.whl", hash = "sha256:669cf1e71910ca93f6a9ee11151d249a184885c78082440dae23f60c040a7a59", size = 90602, upload-time = "2026-08-20T13:48:39.143Z" },
+    { url = "https://files.pythonhosted.org/packages/de/38/4936871c94b77bce41d20c90af024dabaa476eb9ea3ad51929a408962385/solnlib-8.2.0-py3-none-any.whl", hash = "sha256:c6ce491785ef9161ccc9e27ec15377922b72dcb537748f56d6ab34fc4b1a85c4", size = 92820, upload-time = "2026-10-21T20:11:22.253Z" },
 ]
 
 [[package]]
