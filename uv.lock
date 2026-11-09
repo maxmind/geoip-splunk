@@ -704,14 +704,14 @@ wheels = [
 
 [[package]]
 name = "packaging-legacy"
-version = "23.0"
+version = "23.0.post0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/56/a77ebbbfb58a01f4966e717982c2482150640bcb4d96bbdd08845cc66353/packaging_legacy-23.0.tar.gz", hash = "sha256:e1a20ece340845c11d384c27e456eaf76be05dbdb4073469019aabcbbd7b99de", size = 8561, upload-time = "2023-04-24T18:48:25.87Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/31/3a2fe3f5fc01a0671ba20560c556b4239b69bfef842a20bba99e3239fd3e/packaging_legacy-23.0.post0.tar.gz", hash = "sha256:c974a42291a77112313f0198b87ad96e07a3c357295d572560a4b9c368f7d9db", size = 8655, upload-time = "2023-11-28T02:29:56.174Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/c5/7c02f2cb64b96851c52dc210cf5bf926c9d4adf36e1a292ecc839b2c2e57/packaging_legacy-23.0-py3-none-any.whl", hash = "sha256:7013a4aec35163f76c1d7b55340b0602b2fbe6628b4bb0948ac71c607f454260", size = 7943, upload-time = "2023-04-24T18:48:23.943Z" },
+    { url = "https://files.pythonhosted.org/packages/64/3a/cca5260a6e346027495775bef30869acce88d6f72f69ad7c27a0ba87ec95/packaging_legacy-23.0.post0-py3-none-any.whl", hash = "sha256:6cd21cd283c09409349bccc10bb55bfd837b4aab86a7b0f87bfcb8dd9831a8a3", size = 8216, upload-time = "2023-11-28T02:29:54.61Z" },
 ]
 
 [[package]]
@@ -880,11 +880,11 @@ wheels = [
 
 [[package]]
 name = "python-magic"
-version = "0.4.24"
+version = "0.4.27"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3a/70/76b185393fecf78f81c12f9dc7b1df814df785f6acb545fc92b016e75a7e/python-magic-0.4.24.tar.gz", hash = "sha256:de800df9fb50f8ec5974761054a708af6e4246b03b4bdaee993f948947b0ebcf", size = 17295, upload-time = "2021-06-03T13:49:24.116Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/db/0b3e28ac047452d079d375ec6798bf76a036a08182dbb39ed38116a49130/python-magic-0.4.27.tar.gz", hash = "sha256:c1ba14b08e4a5f5c31a302b7721239695b2f0f058d125bd5ce1ee36b9d9d3c3b", size = 14677, upload-time = "2022-06-07T20:16:59.508Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/99/c89223c6547df268596899334ee77b3051f606077317023617b1c43162fb/python_magic-0.4.24-py2.py3-none-any.whl", hash = "sha256:4fec8ee805fea30c07afccd1592c0f17977089895bdfaae5fec870a84e997626", size = 12785, upload-time = "2021-06-03T13:49:22.828Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/73/9f872cb81fc5c3bb48f7227872c28975f998f3e7c2b1c16e95e6432bbb90/python_magic-0.4.27-py2.py3-none-any.whl", hash = "sha256:c212960ad306f700aa0d01e5d7a325d20548ff97eb9920dcd29513174f0294d3", size = 13840, upload-time = "2022-06-07T20:16:57.763Z" },
 ]
 
 [[package]]
@@ -1075,7 +1075,7 @@ wheels = [
 
 [[package]]
 name = "splunk-appinspect"
-version = "4.3.1"
+version = "4.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1096,9 +1096,9 @@ dependencies = [
     { name = "semver" },
     { name = "structlog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/26/20815c700a44b7a2a27d35a244a8018a6a43ab35c245a239c78afdccb8c6/splunk_appinspect-4.3.1.tar.gz", hash = "sha256:6ca96179321c9b23ecf5e6ee1a8c27a4e5badde6ebd19d91de7e913003a29565", size = 653799, upload-time = "2026-08-19T08:24:04.405Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/b2/aa7fddd100ff454326712e7dd4f274362b64b346e34003c0d6c27784ad39/splunk_appinspect-4.4.0.tar.gz", hash = "sha256:4ad52038726df60f5bafe69346b9842557670411506f91ed449af31b10a9252d", size = 656849, upload-time = "2026-10-28T14:23:12.522Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/9e/8468c8e6927944179fd55dd38c70d0e7a260b166eecd25e00ebda65958fe/splunk_appinspect-4.3.1-py3-none-any.whl", hash = "sha256:a14a6508a20383c529b5d170f703f9a5d80fedbd006e4a94a0434f1a46f63007", size = 798251, upload-time = "2026-08-19T08:24:03.049Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/70/05a2852e5e55ffac5be2a22266cf4fd176333e39a3bd0d984902333b81ed/splunk_appinspect-4.4.0-py3-none-any.whl", hash = "sha256:9f2d79de0393abe95a9d7b1a3dd020afe08e42eb6547de52b6979712f1db1fda", size = 801940, upload-time = "2026-10-28T14:23:11.069Z" },
 ]
 
 [[package]]
